@@ -1,0 +1,29 @@
+Details:
+    Add a new account section without rewriting existing accounts or comments.
+    Prompt for missing alias, GitHub username, commit name and email in a terminal.
+    Use a cliclack form titled Add new identity. Labels end with a colon and space;
+    input appears beneath them. Show Commit name (default: <username>):.
+    Press Enter to use that default; Esc or Ctrl+C cancels without saving.
+    Aliases are case insensitive; usernames and emails must be unique across
+    accounts. The commit name defaults to the GitHub username. Outside a terminal,
+    supply the alias, --username and --email; --name is optional. Interactive forms
+    require terminal input, stdout and stderr; prompts are rendered on stderr.
+
+    Reuse a successful GitHub CLI login when available. Otherwise open gh's browser
+    login and verify that the requested username is signed in before saving.
+    Authorize the intended GitHub account in the browser. Tokens remain in gh.
+    Invalid input, cancelled prompts or failed login leave the account file intact.
+
+    Create accounts.conf if needed, or append to the existing file, and print its
+    path. Run setup to refresh identity rules and hooks and enable protections and
+    verbose, then switch authentication and global identity to the new account.
+    --repo explicitly adds it to this repository's allowed list. Other repositories
+    retain their account restrictions. --config and XDG_CONFIG_HOME are respected.
+    If setup or switching fails after saving, the account stays saved; fix the
+    reported problem and retry setup and switch. Requires Git 2.45 or newer.
+
+Examples:
+    mgh new
+    mgh new personal
+    mgh new school --username school-login --email school@example.edu
+    mgh new work --username work-login --email work@example.com --name "Your Name" --repo

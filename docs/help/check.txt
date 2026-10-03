@@ -1,0 +1,12 @@
+Details:
+    Validate live gh authentication against this repository's allowed accounts,
+    then check actual author and committer names and emails for that account.
+    Identity overrides from Git options and environment variables are included.
+
+    Success is silent; mismatches and unconfigured repos exit with an error.
+    Outside a repository, no check is performed. This manual command checks
+    even when protections are off. Outgoing history is checked by the push hook.
+
+Examples:
+    mgh check
+    mgh --config /path/to/accounts.conf check

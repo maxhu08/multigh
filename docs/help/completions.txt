@@ -1,0 +1,12 @@
+Details:
+    Write shell completion definitions to stdout. Generating completions does
+    not require an account file or change Git or GitHub authentication settings.
+
+    Save or load the output using your shell's completion mechanism. Fish can
+    load a saved mgh.fish from its completions directory; Bash can source the
+    generated script, and Zsh can load an _mgh file from its completion path.
+
+Examples:
+    mgh completions fish
+    mgh completions bash > mgh.bash
+    mgh completions zsh > _mgh

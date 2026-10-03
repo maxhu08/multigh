@@ -1,0 +1,15 @@
+mod check;
+mod cli;
+mod completions;
+mod git_config;
+mod hook;
+mod init;
+mod new;
+mod output;
+mod picker;
+mod protections;
+mod setup;
+mod status;
+mod switch;
+mod verbose;
+mod welcome;

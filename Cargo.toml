@@ -1,0 +1,25 @@
+[package]
+name = "multigh"
+version = "0.1.0"
+edition = "2024"
+description = "Keep GitHub accounts and Git commit identities aligned"
+
+[[bin]]
+name = "mgh"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+clap_complete = "4"
+cliclack = "0.5"
+rust-ini = "0.21"
+serde_json = "1"
+tempfile = "3"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[profile.release]
+lto = true
+strip = true

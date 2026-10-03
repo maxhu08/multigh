@@ -1,0 +1,23 @@
+use crate::support::Sandbox;
+use std::fs;
+
+#[test]
+fn init_emits_each_shell_handler_without_needing_accounts() {
+    let sandbox = Sandbox::new();
+
+    fs::remove_file(sandbox.path("config/multigh/accounts.conf")).unwrap();
+
+    for shell in ["fish", "bash", "zsh"] {
+        let script = sandbox.ok("mgh", &["init", shell]);
+
+        assert!(script.contains("__mgh_enter") && script.contains("command mgh enter"));
+
+        let path = sandbox.path(&format!("init.{shell}"));
+
+        fs::write(&path, &script).unwrap();
+        sandbox.ok(shell, &["-n", path.to_str().unwrap()]);
+    }
+
+    assert!(!sandbox.path("gh-calls").exists());
+    assert!(!sandbox.path("state/multigh").exists());
+}

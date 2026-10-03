@@ -1,0 +1,18 @@
+Details:
+    List signed-in GitHub accounts under Identities. Each entry shows its GitHub
+    login and configured commit email, with its identity filepath underneath.
+    The selected account has (Active), highlighted green when color is available.
+    Unconfigured accounts are marked as not configured. Accounts is a purple
+    heading with the account configuration filepath on the next line.
+    Global commit defaults are not displayed.
+
+    In a repo, show allowed accounts, effective commit identity, hook enforcement
+    status, and authentication or identity mismatches. Hook-path overrides and
+    missing, non-executable or changed managed hooks are reported individually.
+
+    This is a read-only report using live gh authentication information.
+    --full adds gh auth status output for troubleshooting.
+
+Examples:
+    mgh status
+    mgh status --full

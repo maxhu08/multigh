@@ -10,7 +10,7 @@ use std::{
 };
 use tempfile::{Builder, TempDir};
 
-pub const ACCOUNTS: &str = include_str!("../fixtures/accounts.ini");
+pub const IDENTITIES: &str = include_str!("../fixtures/identities.jsonc");
 
 pub struct Sandbox(TempDir);
 
@@ -22,7 +22,7 @@ impl Sandbox {
             fs::create_dir_all(sandbox.0.path().join(directory)).unwrap();
         }
 
-        sandbox.write("config/multigh/accounts.conf", ACCOUNTS);
+        sandbox.write("config/multigh/identities.jsonc", IDENTITIES);
         sandbox.write("gitconfig", "[user]\nname = Bob Example\nemail = bob@example.edu\n[commit]\ngpgsign = false\n[tag]\ngpgsign = false\n[init]\ndefaultBranch = main\n");
         sandbox.write("active", "alice\n");
         sandbox.executable("bin/gh", include_str!("../fixtures/gh.sh"));

@@ -1,4 +1,4 @@
-use crate::support::{ACCOUNTS, Sandbox};
+use crate::support::{IDENTITIES, Sandbox};
 use std::fs;
 
 #[test]
@@ -7,9 +7,9 @@ fn explicit_absolute_and_relative_config_paths_override_the_default() {
 
     sandbox.write(
         "repo/other.conf",
-        &ACCOUNTS.replace("alice@example.com", "different@example.com"),
+        &IDENTITIES.replace("alice@example.com", "different@example.com"),
     );
-    fs::remove_file(sandbox.path("config/multigh/accounts.conf")).unwrap();
+    fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
     sandbox.ok("mgh", &["--config", "other.conf", "setup"]);
 
     assert_eq!(
@@ -38,7 +38,7 @@ fn explicit_absolute_and_relative_config_paths_override_the_default() {
 fn config_and_state_fallbacks_use_an_isolated_userprofile_when_xdg_and_home_are_absent() {
     let sandbox = Sandbox::new();
 
-    sandbox.write("home/.config/multigh/accounts.conf", ACCOUNTS);
+    sandbox.write("home/.config/multigh/identities.jsonc", IDENTITIES);
 
     let output = sandbox
         .command("mgh")
@@ -55,7 +55,9 @@ fn config_and_state_fallbacks_use_an_isolated_userprofile_when_xdg_and_home_are_
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(String::from_utf8_lossy(&output.stdout).contains("home/.config/multigh/accounts.conf"));
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("home/.config/multigh/identities.jsonc")
+    );
     assert!(
         sandbox
             .path("home/.local/state/multigh/identities/git-personal.conf")
@@ -112,7 +114,7 @@ fn explicit_config_needs_no_default_home_or_config_directory() {
         .args([
             "--config",
             sandbox
-                .path("config/multigh/accounts.conf")
+                .path("config/multigh/identities.jsonc")
                 .to_str()
                 .unwrap(),
             "setup",

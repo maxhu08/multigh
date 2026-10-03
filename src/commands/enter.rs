@@ -22,15 +22,15 @@ pub fn run(path: PathBuf) -> Result<()> {
         }
 
         output::warning(
-            "Account protections are not active. Run mgh setup to repair shared hooks; custom global or command overrides need manual integration.",
+            "Identity protections are not active. Run mgh setup to repair shared hooks; custom global or command overrides need manual integration.",
         );
     }
 
     if protections && allowed.is_empty() {
         let pending = if protected {
-            "No accounts selected; commits and pushes remain blocked."
+            "No identities selected; commits and pushes remain blocked."
         } else {
-            "No accounts selected; repair hooks and choose accounts before committing or pushing."
+            "No identities selected; repair hooks and choose identities before committing or pushing."
         };
 
         if policy::interactive() {
@@ -40,7 +40,7 @@ pub fn run(path: PathBuf) -> Result<()> {
             }
         } else {
             output::warning(&format!(
-                "{pending}\nEnter this repository in an interactive terminal, or run mgh protections --allow <accounts>."
+                "{pending}\nEnter this repository in an interactive terminal, or run mgh protections --allow <identities>."
             ));
         }
     }
@@ -55,7 +55,7 @@ pub fn run(path: PathBuf) -> Result<()> {
                 println!(
                     "  {}",
                     output::paint(
-                        "Account protections are active; your existing checks are preserved.",
+                        "Identity protections are active; your existing checks are preserved.",
                         output::Color::Changed,
                         false
                     )

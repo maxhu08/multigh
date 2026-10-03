@@ -1,7 +1,12 @@
 # multigh
 
 `mgh` helps you manage multiple GitHub accounts across repositories, switch
-identities, and keep commits and pushes tied to the right account.
+identities, and keep commits and pushes tied to the right identity.
+An **identity** is a configured name such as `personal`, `school` or `work`.
+It maps to a GitHub account and the name and email used for commits. Identity
+names are case insensitive: `Personal`, `PERSONAL` and `personal` select the same
+identity. Your GitHub username is separate from your identity name.
+
 Written in Rust; requires Git 2.45 or newer and the GitHub CLI.
 
 This project is not yet published as a Rust crate on crates.io. Install from this
@@ -20,20 +25,20 @@ cargo install --path . --locked --root "$HOME/.local"
 
 Add `~/.local/bin` to your shell's PATH before running `mgh` if needed.
 
-### 2. Add your accounts
+### 2. Add your identities
 
 ```sh
 mgh new
 ```
 
-Follow the prompts for an account name, GitHub username, commit name and email.
+Follow the prompts for an identity name, GitHub username, commit name and email.
 Use names such as `personal`, `school` or `work`, and sign in through the browser
-if prompted. Repeat `mgh new` for each account.
+if prompted. Repeat `mgh new` for each identity.
 
 **`mgh new` automatically runs `mgh setup`.** It saves your configuration,
-selects the account, and enables protections and verbose output.
+selects the identity, and enables protections and verbose output.
 
-Already have an `accounts.conf`? Run `mgh setup` to use it, or follow
+Already have an `identities.jsonc`? Run `mgh setup` to use it, or follow
 [manual setup](#manual-setup) to create one yourself.
 
 ### 3. Enable shell integration
@@ -55,15 +60,15 @@ eval "$(mgh init bash)"
 eval "$(mgh init zsh)"
 ```
 
-Open a new terminal to activate it. This prompts for allowed accounts when you
-enter an unconfigured repository and shows which accounts are allowed there.
+Open a new terminal to activate it. This prompts for allowed identities when you
+enter an unconfigured repository and shows which identities are allowed there.
 
 ### 4. Use it in a repository
 
-Enter your repository and choose its allowed accounts when prompted. Then:
+Enter your repository and choose its allowed identities when prompted. Then:
 
 ```sh
-# Switch to an allowed account, using the name you chose earlier.
+# Switch to an allowed identity, using the name you chose earlier.
 mgh switch personal
 
 # Check the selected identity and repository protections.
@@ -73,9 +78,9 @@ mgh status
 ## Setup and status
 
 `mgh setup` turns **protections ON** and **verbose ON**, explains both, and prints
-the Accounts, global Git config and generated Identity filepaths. The global
+the configuration, global Git config and generated identity filepaths. The global
 updated/unchanged notice appears with these paths, before the mode explanations.
-It reads your existing account file without overwriting it. Re-running setup
+It reads your existing `identities.jsonc` without overwriting it. Re-running setup
 enables both again. The final shell integration guidance uses the same indentation.
 
 Commands that change global Git settings print **“Global Git config updated”**
@@ -87,67 +92,74 @@ comments. Successful commands print **“Global Git config unchanged”** when n
 global changes are needed. Repeated commands do not add duplicate comments.
 Unrelated settings and comments are preserved.
 
-`mgh status` lists signed-in accounts under **Identities**. Each entry shows the
-GitHub login and configured commit email, followed by the identity filepath on
-the next line. The selected account has a green **(Active)** marker when color is
-available. **Accounts** is a purple heading with the account configuration
-filepath on the next line. Status also shows the current repo's identity and
-protections when inside a repo.
+`mgh status` lists configured identities under **Identities**. Each entry shows
+its identity name, followed by labeled GitHub username, commit name, commit email
+and generated identity filepath rows, indented beneath the identity name with a
+blank line between identities. The identity matching the live active
+GitHub account has a green **(Active)** marker. Identities without a GitHub CLI login show **(Not signed
+in)**. Signed-in GitHub accounts without a configured identity appear separately
+under **Unconfigured GitHub accounts**. **Accounts** is a purple heading with the
+`identities.jsonc` filepath on the next line. Status also shows the current repo's
+allowed identities, effective commit details and protections.
 
 To enable the optional shell welcome message, run `mgh welcome on` and add
-`mgh welcome` to your shell's greeting or interactive startup configuration.
+`mgh welcome` to your shell's greeting or interactive startup configuration. It
+shows the identity on the heading line, such as **Identity personal**, followed
+by the GitHub username and effective commit email. There is no separator or
+“Selected identity” label.
 
-## Adding an account
+## Adding an identity
 
 ```sh
-# Prompt for an alias, GitHub username, commit name and email.
+# Prompt for an identity name, GitHub username, commit name and email.
 mgh new
 
-# Supply an alias and enter the remaining details interactively.
+# Supply an identity name and enter the remaining details interactively.
 mgh new school
 
 # Supply all required details; the commit name defaults to the username.
 mgh new work --username work-login --email work@example.com
 
-# Also authorize the account for the current repository.
+# Also authorize the identity for the current repository.
 mgh new work --username work-login --email work@example.com --name "Your Name" --repo
 ```
 
-Use a new alias for each account. Existing sections and comments are preserved.
+Use a unique identity name for each GitHub account. Existing identities, comments
+and formatting are preserved when adding an identity. New files use four-space indentation.
 All interactive forms use [cliclack](https://github.com/fadeevab/cliclack),
-including identity inputs and repository account checklists. The **Add new
+including identity inputs and repository checklists. The **Add new
 identity** form uses labels ending in a colon and space, with input beneath them.
 **Commit name (default: your-username):** shows your GitHub username as the default;
 press Enter to use it or type a different commit name. **Esc** or **Ctrl+C** cancels
 without saving the form.
 `mgh new` reuses a successful GitHub CLI login when available; otherwise it opens
-browser authentication. Sign into the requested account in the browser. It
-verifies that username before saving and prints the Accounts filepath.
+browser authentication. Sign into the requested GitHub account in the browser. It
+verifies that username before saving and prints the configuration filepath.
 
-The command creates `accounts.conf` when needed, runs setup to refresh identity
+The command creates `identities.jsonc` when needed, runs setup to refresh identity
 files and hooks and enable protections and verbose, then switches authentication
-and global Git identity. Existing repository restrictions remain in effect; use
-`--repo` to add the new account to the current repo. `--config` and XDG locations
+and global commit defaults. Existing repository restrictions remain in effect; use
+`--repo` to add the new identity to the current repo. `--config` and XDG locations
 work as usual. Invalid details, cancelled prompts and failed login leave the
-accounts file intact. If setup or switching fails after saving, the account stays
-saved and the error explains how to retry those steps. For a symlinked accounts
-file, pass its target using `--config`.
+identity configuration intact. If setup or switching fails after saving, the identity stays
+saved and the error explains how to retry those steps. For a symlinked
+configuration, pass its target using `--config`.
 
 ## Protections and verbose output
 
-With protections on, a normal Git clone opens an account checklist after checkout.
-Entering a repo without selected accounts also opens it, including when a terminal
+With protections on, a normal Git clone opens an identity checklist after checkout.
+Entering a repo without selected identities also opens it, including when a terminal
 starts there. Use **↑/↓** to move, **Space** to select or deselect, and **Enter** to
-save one or more accounts. **Esc** or **Ctrl+C** cancels; the repo stays blocked
+save one or more identities. **Esc** or **Ctrl+C** cancels; the repo stays blocked
 until you select. Previously saved selections appear checked when reopening the
-form, and longer lists scroll through seven visible accounts at a time.
+form, and longer lists scroll through seven visible identities at a time.
 
-Verbose output shows the allowed accounts whenever you enter a repo or start a
+Verbose output shows the allowed identities whenever you enter a repo or start a
 terminal there. Directory-entry and startup behavior require the shell integration
 above. Both preferences apply across your local repos and can be changed separately:
 
 ```sh
-# Show protection status and this repo's allowed accounts.
+# Show protection status and this repo's allowed identities.
 mgh protections
 
 # Edit this repo's selections using the checklist.
@@ -156,16 +168,16 @@ mgh protections --repo
 # Set the list directly, for example in automation.
 mgh protections --allow personal,school,work
 
-# Toggle account enforcement.
+# Toggle identity enforcement.
 mgh protections off
 mgh protections on
 
-# Toggle allowed-account entry reports.
+# Toggle allowed-identity entry reports.
 mgh verbose off
 mgh verbose on
 ```
 
-Switching to an allowed account also updates the current repo's commit identity.
+Switching to an allowed identity also updates the current repo's commit details.
 `mgh switch personal --repo` explicitly adds personal to its allowed list. Turning
 protections off retains the list and keeps existing hooks running.
 
@@ -185,7 +197,7 @@ arguments, input and rejection behavior. `HUSKY=0` can skip Husky checks but doe
 not disable `mgh` checks.
 
 With verbose output on, entry reports **“Existing hooks detected”** and confirms
-that account protections are active and existing checks are preserved. Each hook
+that identity protections are active and existing checks are preserved. Each hook
 appears on its own line with its path. Husky reports its actual project hooks,
 such as `.husky/pre-commit`, excluding generated wrappers with no project script.
 Ordinary and other custom hook directories use the same report. Non-executable
@@ -193,7 +205,7 @@ existing hooks are listed as skipped, matching Git's behavior.
 
 ```text
 Existing hooks detected
-Account protections are active; your existing checks are preserved.
+Identity protections are active; your existing checks are preserved.
 
 pre-commit       .husky/pre-commit
 commit-msg       .husky/commit-msg
@@ -211,97 +223,125 @@ Until that repair, the reset path takes precedence. To undo local integration,
 restore `core.hooksPath` to the saved `mgh.originalHooksPath` and remove the saved key
 in the same local or worktree scope.
 
-Choosing accounts writes repeated **`mgh.allowedAccount`** entries to the repo's
+Choosing identities writes repeated **`mgh.allowedAccount`** entries to the repo's
 local Git config, normally `.git/config`. It also sets **`mgh.account`**,
-**`user.name`** and **`user.email`** for the selected commit identity. Existing
-single-account `mgh.account` or `ghguard.account` pins remain accepted; saving a new
+**`user.name`** and **`user.email`** from the selected identity. Existing
+single-identity `mgh.account` or `ghguard.account` pins remain accepted; saving a new
 selection records the explicit list and removes the legacy `ghguard.account` pin.
+The Git keys `mgh.account` and `mgh.allowedAccount` retain their names for
+compatibility. Their values represent identity names.
 These settings and hooks are local: they add no tracked files or GitHub permissions,
 and other people do not receive them when cloning your repo.
 
 Before commits, the guard checks live `gh` authentication against the allowed
-accounts and verifies the actual author and committer names and emails, including
-identity overrides. Before pushes, it checks live authentication and outgoing
-commits for identities belonging to your configured accounts outside the allowed
-list. Commits from other collaborators are allowed. Missing configuration or no
-allowed accounts blocks commits and pushes while protections are on.
+identities and verifies the actual author and committer names and emails, including
+author and committer overrides. Before pushes, it checks live authentication and outgoing
+commits for names and emails belonging to configured identities outside the
+allowed list. Commits from other collaborators are allowed. Missing configuration or no
+allowed identities blocks commits and pushes while protections are on.
 
 The guard helps prevent mistakes; it uses Git's local hooks. `--no-verify`, custom
 hook paths, and clients that bypass Git hooks can bypass enforcement. A normal
 Git clone prompts after downloading; noninteractive, bare, empty and
 `--no-checkout` clones may not show a picker. Their commits and pushes stay blocked
-until accounts are selected, and shell entry can prompt later. This does not choose
+until identities are selected, and shell entry can prompt later. This does not choose
 SSH keys, change existing history or guarantee that every cloning client prompts.
 
-## Account configuration
+## Identity configuration
 
-`~/.config/multigh/accounts.conf` uses INI sections, one per account. The section
-name is the alias you pass to commands: `[personal]` becomes `mgh switch personal`.
-The [example config](example/accounts.conf) includes personal, school and work;
-keep the sections you need and replace their example identities with your own.
+`~/.config/multigh/identities.jsonc` is a JSONC object (JSON with comments) keyed by
+identity name.
+`"personal"` becomes `mgh switch personal`. Choose your own names and add as many
+identities as you need. Names are case insensitive, unique ignoring case, start
+with an ASCII letter, and contain only letters, digits, underscores or hyphens.
 
-Choose your own account names and add as many sections as you need. Names are
-case insensitive: `[Personal]` works with `mgh switch personal` or `mgh switch PERSONAL`.
-Names must be unique ignoring case, start with a letter, and use letters, digits,
-underscores or hyphens.
+This is the complete [example config](examples/identities.jsonc). Replace its
+fictional usernames and commit details with your own:
 
-```ini
-# This is what an example config would look like.
-# You can choose your own account names and add as many accounts as you want.
-# Account names are case insensitive.
-
-[personal]
-username = your-personal-username
-name = Your Personal Commit Name
-email = 123456+your-personal-username@users.noreply.github.com
-allowed_emails =
-    personal@example.com
-
-[school]
-username = your-school-username
-name = Your School Commit Name
-email = 789012+your-school-username@users.noreply.github.com
-allowed_emails =
-    student@example.edu
-
-[work]
-username = your-work-username
-name = Your Work Commit Name
-email = work@example.com
-allowed_emails =
-    345678+your-work-username@users.noreply.github.com
+```jsonc
+// Example configuration: choose any identity names and any number of identities.
+// Names are case insensitive; personal, Personal and PERSONAL are equivalent.
+// Schema: each identity requires username and a commit object.
+// commit.name is optional and defaults to username.
+// commit.email is required and is used for new commits; it is always accepted.
+// commit.additional_emails is an optional array of other accepted commit emails.
+{
+    "personal": {
+        "username": "alice",
+        "commit": {
+            "name": "Alice Example",
+            "email": "alice@example.com",
+            "additional_emails": [
+                "123+alice@users.noreply.github.com"
+            ]
+        }
+    },
+    "school": {
+        "username": "bob",
+        "commit": {
+            "name": "Bob Example",
+            "email": "bob@example.edu",
+            "additional_emails": [
+                "123+bob@users.noreply.github.com"
+            ]
+        }
+    },
+    "work": {
+        "username": "carol",
+        "commit": {
+            "name": "Carol Example",
+            "email": "carol@example.org",
+            "additional_emails": [
+                "123+carol@users.noreply.github.com"
+            ]
+        }
+    }
+}
 ```
+
+Use `//` for line comments or `/* ... */` for block comments. Trailing commas
+are supported; keys and string values still require double quotes. Plain JSON
+also works. `mgh new` preserves comments and existing formatting when adding an
+identity. No special comment field is needed.
 
 | Field | Meaning |
 | --- | --- |
-| `username` | Required GitHub login for this account. |
-| `name` | Optional Git commit name; defaults to `username`. |
-| `email` | Required default Git commit email. |
-| `allowed_emails` | Optional additional commit emails, one per indented line. |
+| `username` | Required GitHub username associated with the identity. |
+| `commit.name` | Optional name used in commits; defaults to `username`. |
+| `commit.email` | Required email used for new commits when switching to this identity. |
+| `commit.additional_emails` | Optional array of other emails accepted by protections, including older or noreply addresses. It does not change the email used for new commits. |
 
-The default `email` is automatically allowed. Use emails belonging to the matching
-GitHub account; accounts must have distinct usernames and email addresses.
-Store authentication credentials through `gh auth login`. After changing this
-file, run `mgh setup` to refresh the generated identity files.
+`commit.email` is always accepted by protections, so it does not need to appear
+in `additional_emails`. Identity names, usernames and emails must be unique
+across identities, ignoring case. Unknown fields and duplicate JSONC keys are
+rejected. Use emails belonging to the matching GitHub account; authentication
+credentials remain in `gh`. After changing this file, run `mgh setup` to refresh
+the generated identity files.
+
+Older versions used `accounts.conf` with INI sections. Convert each section to an
+identity object in `identities.jsonc`: `name`, `email` and `allowed_emails` become
+`commit.name`, `commit.email` and the `commit.additional_emails` array. Keep the
+old file as a backup, then run `mgh setup` to update the hooks' configuration path.
+The JSONC loader does not read INI files.
 
 ### Manual setup
 
-If you prefer to configure accounts yourself, copy the
-[example config](example/accounts.conf) to `~/.config/multigh/accounts.conf` and
-replace its example identities with your own. Then:
+If you prefer to configure identities yourself, copy the
+[example config](examples/identities.jsonc) to `~/.config/multigh/identities.jsonc` and
+replace its example usernames and commit details with your own. Then:
 
 ```sh
-# Sign in to each configured account; repeat as needed.
+# Sign in to each identity's GitHub account; repeat as needed.
 gh auth login
 
 # Generate identity rules and hooks and enable protections and verbose output.
 mgh setup
 
-# Select an account from your configuration.
+# Select an identity from your configuration.
 mgh switch personal
 ```
 
-If your account file already exists, use it directly. Run `mgh setup` again after
+If your identity configuration already exists, use it directly. Run `mgh setup` again after
 manually editing it. Both setup paths use the shell integration shown in
 [Getting started](#getting-started).
 
@@ -311,7 +351,7 @@ manually editing it. Both setup paths use the shell integration shown in
 cargo test --all-targets
 ```
 
-Tests cover each command, account validation, commit and push guards, hook
+Tests cover each command, identity validation, commit and push guards, hook
 integration and real Fish, Bash and Zsh startup. They use temporary repositories
 and simulated GitHub accounts. See the [testing guide](docs/testing.md) for
 prerequisites, coverage and focused test commands.

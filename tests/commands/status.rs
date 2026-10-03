@@ -2,6 +2,37 @@ use crate::support::{Sandbox, terminal};
 use std::fs;
 
 #[test]
+fn status_uses_identity_names_even_when_github_logins_differ_or_are_not_signed_in() {
+    let sandbox = Sandbox::new();
+
+    sandbox.write(
+        "config/multigh/identities.jsonc",
+        r#"{"PeRsOnAl": {"username": "alice", "commit": {"email": "alice@example.com"}}, "WoRk": {"username": "carol", "commit": {"email": "carol@example.com"}}}"#,
+    );
+    sandbox.write(
+        "accounts-json",
+        r#"[{"login":"ALICE","active":true,"state":"success"},{"login":"unmapped","active":false,"state":"success"}]"#,
+    );
+
+    let output = sandbox.ok("mgh", &["status"]);
+
+    assert!(
+        output.contains("personal (Active)\n    GitHub username  alice\n    Commit name      alice\n    Commit email     alice@example.com"),
+        "{output}"
+    );
+    assert!(
+        output.contains("work (Not signed in)\n    GitHub username  carol\n    Commit name      carol\n    Commit email     carol@example.com"),
+        "{output}"
+    );
+    assert!(output.contains("git-personal.conf") && output.contains("git-work.conf"));
+    assert!(
+        output.contains("Unconfigured GitHub accounts\n  unmapped"),
+        "{output}"
+    );
+    assert!(!output.contains("ALICE alice@example.com"));
+}
+
+#[test]
 fn status_reports_live_authentication_identity_and_protection_without_mutation() {
     let sandbox = Sandbox::new();
 
@@ -13,22 +44,25 @@ fn status_reports_live_authentication_identity_and_protection_without_mutation()
     let status = sandbox.ok("mgh", &["status"]);
 
     assert!(status.contains(&format!(
-        "  alice alice@example.com (Active)\n  {}",
+        "  personal (Active)\n    GitHub username  alice\n    Commit name      Alice Example\n    Commit email     alice@example.com\n    Identity file    {}",
         sandbox.path("state/multigh/identities/git-personal.conf").display()
     )));
     assert!(status.contains(&format!(
-        "  bob bob@example.edu\n  {}",
+        "  school\n    GitHub username  bob\n    Commit name      Bob Example\n    Commit email     bob@example.edu\n    Identity file    {}",
         sandbox.path("state/multigh/identities/git-school.conf").display()
     )));
     assert!(status.contains("Identities"));
     assert_eq!(status.matches("(Active)").count(), 1);
     assert!(status.contains(&format!(
         "  Accounts\n  {}",
-        sandbox.path("config/multigh/accounts.conf").display()
+        sandbox.path("config/multigh/identities.jsonc").display()
     )));
     assert!(!status.contains("Account file") && !status.contains("Global commit defaults"));
-    assert!(status.contains("Allowed accounts personal"));
-    assert!(status.contains("alice@example.com") && status.contains("Account and identity match"));
+    assert!(status.contains("Allowed identities personal"));
+    assert!(
+        status.contains("alice@example.com")
+            && status.contains("Identity and commit details match")
+    );
     assert!(status.contains("Commit + push checks enabled"));
     assert!(status.find("Accounts").unwrap() < status.find("Current repository").unwrap());
     assert_eq!(before, fs::read(sandbox.path("gitconfig")).unwrap());
@@ -46,7 +80,7 @@ fn status_explains_unconfigured_disallowed_and_mismatched_repositories() {
     assert!(
         sandbox
             .ok("mgh", &["status"])
-            .contains("No accounts are authorized")
+            .contains("No identities are authorized")
     );
 
     sandbox.protect();
@@ -67,7 +101,7 @@ fn status_explains_unconfigured_disallowed_and_mismatched_repositories() {
     assert!(
         sandbox
             .ok("mgh", &["status"])
-            .contains("identity does not match")
+            .contains("commit details do not match identity")
     );
 
     sandbox.ok("mgh", &["protections", "off"]);
@@ -80,7 +114,7 @@ fn status_explains_unconfigured_disallowed_and_mismatched_repositories() {
 }
 
 #[test]
-fn status_handles_authentication_failures_and_invalid_account_config() {
+fn status_handles_authentication_failures_and_invalid_identity_config() {
     let sandbox = Sandbox::new();
 
     sandbox.write("accounts-json", "[]\n");
@@ -102,7 +136,7 @@ fn status_handles_authentication_failures_and_invalid_account_config() {
         &["status", "--full"],
         "GitHub authentication check failed",
     );
-    fs::remove_file(sandbox.path("config/multigh/accounts.conf")).unwrap();
+    fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
 
     assert!(sandbox.ok("mgh", &["status"]).contains("Read "));
 
@@ -126,8 +160,8 @@ fn status_outside_a_repository_reports_identity_entries_without_global_defaults(
     let text = String::from_utf8_lossy(&output.stdout);
 
     assert!(text.contains("Identities"));
-    assert!(text.contains("alice alice@example.com (Active)"));
-    assert!(text.contains("bob bob@example.edu"));
+    assert!(text.contains("personal (Active)\n    GitHub username  alice\n    Commit name      Alice Example\n    Commit email     alice@example.com"));
+    assert!(text.contains("school\n    GitHub username  bob\n    Commit name      Bob Example\n    Commit email     bob@example.edu"));
     assert!(!text.contains("GitHub accounts") && !text.contains("Account file"));
     assert!(!text.contains("Global commit defaults"));
     assert!(!text.contains("Current repository"));
@@ -144,13 +178,13 @@ fn status_matches_identity_files_case_insensitively_and_explains_unconfigured_ac
 
     let output = sandbox.ok("mgh", &["status"]);
     assert_eq!(output.matches("(Active)").count(), 1);
-    assert!(output.contains("someone-with-a-long-login not configured\n  Identity not configured"));
+    assert!(output.contains("Unconfigured GitHub accounts\n  someone-with-a-long-login"));
     assert!(output.contains(&format!(
-        "  ALICE alice@example.com (Active)\n  {}",
+        "  personal (Active)\n    GitHub username  alice\n    Commit name      Alice Example\n    Commit email     alice@example.com\n    Identity file    {}",
         sandbox.path("state/multigh/identities/git-personal.conf").display()
     )));
     assert!(output.contains(&format!(
-        "  bob bob@example.edu\n  {}",
+        "  school\n    GitHub username  bob\n    Commit name      Bob Example\n    Commit email     bob@example.edu\n    Identity file    {}",
         sandbox.path("state/multigh/identities/git-school.conf").display()
     )));
 }
@@ -181,7 +215,7 @@ fn status_active_marker_and_accounts_heading_respect_terminal_colors() {
             assert!(
                 output.contains(&format!(
                     "\x1b[1;38;2;192;132;252mAccounts\x1b[0m\r\n  \x1b[38;2;148;163;184m{}\x1b[0m",
-                    sandbox.path("config/multigh/accounts.conf").display()
+                    sandbox.path("config/multigh/identities.jsonc").display()
                 )),
                 "{output}"
             );
@@ -190,7 +224,7 @@ fn status_active_marker_and_accounts_heading_respect_terminal_colors() {
             assert!(
                 output.contains(&format!(
                     "  Accounts\r\n  {}",
-                    sandbox.path("config/multigh/accounts.conf").display()
+                    sandbox.path("config/multigh/identities.jsonc").display()
                 )),
                 "{output}"
             );

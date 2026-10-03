@@ -1,10 +1,10 @@
 use crate::support::{Sandbox, terminal};
 use std::fs;
 
-const QUESTION: &str = "Which accounts may use this repository?";
+const QUESTION: &str = "Which identities may use this repository?";
 
 #[test]
-fn checklist_selects_multiple_accounts_and_reopens_with_saved_selections() {
+fn checklist_selects_multiple_identities_and_reopens_with_saved_selections() {
     let sandbox = Sandbox::new();
 
     let global = fs::read(sandbox.path("gitconfig")).unwrap();
@@ -67,17 +67,21 @@ fn empty_selection_is_rejected_and_cancellation_preserves_policy() {
 }
 
 #[test]
-fn checklist_scrolls_through_many_accounts_and_saves_the_selected_alias() {
+fn checklist_scrolls_through_many_identities_and_saves_the_selected_name() {
     let sandbox = Sandbox::new();
-    let mut accounts = String::new();
+    let mut configuration = serde_json::Map::new();
 
     for index in 0..12 {
-        accounts.push_str(&format!(
-            "[work{index:02}]\nusername = user{index}\nemail = user{index}@example.com\n\n"
-        ));
+        configuration.insert(
+            format!("work{index:02}"),
+            serde_json::json!({"username":format!("user{index}"), "commit":{"email":format!("user{index}@example.com")}}),
+        );
     }
 
-    sandbox.write("config/multigh/accounts.conf", &accounts);
+    sandbox.write(
+        "config/multigh/identities.jsonc",
+        &serde_json::to_string(&configuration).unwrap(),
+    );
 
     let mut keys = b"\x1b[B".repeat(11);
 
@@ -89,7 +93,7 @@ fn checklist_scrolls_through_many_accounts_and_saves_the_selected_alias() {
     );
 
     assert!(status.success(), "{output}");
-    assert!(output.contains("Allowed accounts saved"), "{output}");
+    assert!(output.contains("Allowed identities saved"), "{output}");
     assert_eq!(
         sandbox.ok("git", &["config", "--get-all", "mgh.allowedAccount"]),
         "work11\n"
@@ -117,11 +121,11 @@ fn cancelled_entry_keeps_unconfigured_repos_blocked_without_breaking_shell_start
             .success()
     );
 
-    sandbox.blocked("mgh", &["check"], "No accounts are authorized");
+    sandbox.blocked("mgh", &["check"], "No identities are authorized");
 }
 
 #[test]
-fn interactive_clone_saves_the_selected_accounts_in_the_new_repo() {
+fn interactive_clone_saves_the_selected_identities_in_the_new_repo() {
     let sandbox = Sandbox::new();
 
     sandbox.protect();

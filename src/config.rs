@@ -1,22 +1,100 @@
 use anyhow::{Context, Result, bail, ensure};
-use ini::{Ini, ParseOption};
+use jsonc_parser::ParseOptions;
+use serde::{
+    Deserialize, Deserializer,
+    de::{self, MapAccess, Visitor},
+};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    env,
+    env, fmt, fs,
     path::PathBuf,
 };
 
-pub struct Account {
+pub struct Identity {
     pub username: String,
-    pub name: String,
-    pub email: String,
-    pub emails: BTreeSet<String>,
+    pub commit_name: String,
+    pub commit_email: String,
+    pub allowed_emails: BTreeSet<String>,
 }
 
 pub struct Config {
     pub path: PathBuf,
-    pub accounts: BTreeMap<String, Account>,
+    pub identities: BTreeMap<String, Identity>,
 }
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Definition {
+    username: String,
+    commit: Commit,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Commit {
+    name: Option<String>,
+    email: String,
+    #[serde(default)]
+    additional_emails: Vec<String>,
+}
+
+struct Definitions(BTreeMap<String, Definition>);
+
+impl<'de> Deserialize<'de> for Definitions {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+        struct DefinitionsVisitor;
+
+        impl<'de> Visitor<'de> for DefinitionsVisitor {
+            type Value = Definitions;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("an object keyed by identity names")
+            }
+
+            fn visit_map<M: MapAccess<'de>>(
+                self,
+                mut map: M,
+            ) -> std::result::Result<Self::Value, M::Error> {
+                let mut identities = BTreeMap::new();
+
+                while let Some(key) = map.next_key::<String>()? {
+                    let key = key.to_ascii_lowercase();
+
+                    if !key.starts_with(|c: char| c.is_ascii_lowercase())
+                        || !key.chars().all(|c| {
+                            c.is_ascii_lowercase() || c.is_ascii_digit() || "_-".contains(c)
+                        })
+                    {
+                        return Err(de::Error::custom(format!("Invalid identity name: {key}")));
+                    }
+
+                    if identities.contains_key(&key) {
+                        return Err(de::Error::custom(format!("Duplicate identity name: {key}")));
+                    }
+
+                    identities.insert(key, map.next_value()?);
+                }
+
+                Ok(Definitions(identities))
+            }
+        }
+
+        deserializer.deserialize_map(DefinitionsVisitor)
+    }
+}
+
+pub const JSONC: ParseOptions = ParseOptions {
+    allow_comments: true,
+    allow_trailing_commas: true,
+    allow_loose_object_property_names: false,
+    allow_missing_commas: false,
+    allow_single_quoted_strings: false,
+    allow_hexadecimal_numbers: false,
+    allow_unary_plus_numbers: false,
+    allow_bare_decimal_point_numbers: false,
+    allow_non_finite_numbers: false,
+    allow_extended_string_escapes: false,
+};
 
 pub fn directory(variable: &str, fallback: &str) -> Result<PathBuf> {
     if let Some(value) = env::var_os(variable).filter(|value| !value.is_empty()) {
@@ -33,7 +111,7 @@ pub fn directory(variable: &str, fallback: &str) -> Result<PathBuf> {
 pub fn path(explicit: Option<PathBuf>) -> Result<PathBuf> {
     let path = match explicit {
         Some(path) => path,
-        None => directory("XDG_CONFIG_HOME", ".config")?.join("multigh/accounts.conf"),
+        None => directory("XDG_CONFIG_HOME", ".config")?.join("multigh/identities.jsonc"),
     };
 
     Ok(if path.is_absolute() {
@@ -45,56 +123,18 @@ pub fn path(explicit: Option<PathBuf>) -> Result<PathBuf> {
 
 impl Config {
     pub fn load(path: PathBuf) -> Result<Self> {
-        let options = ParseOption {
-            enabled_quote: false,
-            enabled_escape: false,
-            enabled_indented_mutiline_value: true,
-            ..Default::default()
-        };
-
-        let parsed = Ini::load_from_file_opt(&path, options).with_context(|| {
+        let text = fs::read_to_string(&path).with_context(|| {
             format!(
-                "Read {} (create it using example/accounts.conf)",
+                "Read {} (create it using examples/identities.jsonc)",
                 path.display()
             )
         })?;
+        let Definitions(parsed) = jsonc_parser::parse_to_serde_value(&text, &JSONC)
+            .with_context(|| format!("Read {}: invalid identity configuration", path.display()))?;
+        let mut identities = BTreeMap::new();
 
-        let mut accounts = BTreeMap::new();
-
-        for (section, values) in &parsed {
-            let Some(alias) = section else {
-                ensure!(
-                    values.is_empty(),
-                    "Account fields must be inside a named section"
-                );
-                continue;
-            };
-
-            let alias = alias.to_ascii_lowercase();
-
-            ensure!(
-                alias.starts_with(|c: char| c.is_ascii_lowercase())
-                    && alias
-                        .chars()
-                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || "_-".contains(c)),
-                "Invalid account section: {alias}"
-            );
-            ensure!(
-                !accounts.contains_key(&alias),
-                "Duplicate account section: {alias}"
-            );
-
-            let mut keys = BTreeSet::new();
-
-            for (key, _) in values {
-                ensure!(
-                    ["username", "name", "email", "allowed_emails"].contains(&key)
-                        && keys.insert(key),
-                    "Unknown or duplicate field in [{alias}]: {key}"
-                );
-            }
-
-            let username = values.get("username").unwrap_or_default().trim().to_owned();
+        for (identity_name, definition) in parsed {
+            let username = definition.username.trim().to_owned();
 
             ensure!(
                 !username.is_empty()
@@ -102,24 +142,28 @@ impl Config {
                     && username
                         .chars()
                         .all(|c| c.is_ascii_alphanumeric() || c == '-'),
-                "Invalid username in [{alias}]"
+                "Invalid username in [{identity_name}]"
             );
 
-            let name = values.get("name").unwrap_or(&username).trim().to_owned();
+            let name = definition
+                .commit
+                .name
+                .as_deref()
+                .unwrap_or(&username)
+                .trim()
+                .to_owned();
 
             ensure!(
                 !name.is_empty() && !name.chars().any(|c| c.is_control() || "<>".contains(c)),
-                "Invalid commit name in [{alias}]"
+                "Invalid commit name in [{identity_name}]"
             );
 
-            let email = values.get("email").unwrap_or_default().trim().to_owned();
-            let mut emails: BTreeSet<_> = values
-                .get("allowed_emails")
-                .unwrap_or_default()
-                .lines()
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .map(str::to_ascii_lowercase)
+            let email = definition.commit.email.trim().to_owned();
+            let mut emails: BTreeSet<_> = definition
+                .commit
+                .additional_emails
+                .iter()
+                .map(|email| email.trim().to_ascii_lowercase())
                 .collect();
 
             emails.insert(email.to_ascii_lowercase());
@@ -131,40 +175,44 @@ impl Config {
                     parts.len() == 2
                         && parts.iter().all(|part| !part.is_empty())
                         && !email.chars().any(|c| c.is_whitespace() || "<>".contains(c)),
-                    "Invalid email in [{alias}]"
+                    "Invalid email in [{identity_name}]"
                 );
             }
 
             ensure!(
-                !accounts.values().any(|other: &Account| other
+                !identities.values().any(|other: &Identity| other
                     .username
                     .eq_ignore_ascii_case(&username)
-                    || !other.emails.is_disjoint(&emails)),
-                "Accounts cannot share usernames or email addresses"
+                    || !other.allowed_emails.is_disjoint(&emails)),
+                "Identities cannot share usernames or email addresses"
             );
 
-            accounts.insert(
-                alias,
-                Account {
+            identities.insert(
+                identity_name,
+                Identity {
                     username,
-                    name,
-                    email,
-                    emails,
+                    commit_name: name,
+                    commit_email: email,
+                    allowed_emails: emails,
                 },
             );
         }
 
-        ensure!(!accounts.is_empty(), "Add an account to {}", path.display());
+        ensure!(
+            !identities.is_empty(),
+            "Add an identity to {}",
+            path.display()
+        );
 
-        Ok(Self { path, accounts })
+        Ok(Self { path, identities })
     }
 
-    pub fn account(&self, alias: &str) -> Result<&Account> {
-        match self.accounts.get(&alias.to_ascii_lowercase()) {
-            Some(account) => Ok(account),
+    pub fn identity(&self, identity_name: &str) -> Result<&Identity> {
+        match self.identities.get(&identity_name.to_ascii_lowercase()) {
+            Some(identity) => Ok(identity),
             None => bail!(
-                "Unknown account '{alias}'; choose {}",
-                self.accounts
+                "Unknown identity '{identity_name}'; choose {}",
+                self.identities
                     .keys()
                     .map(String::as_str)
                     .collect::<Vec<_>>()

@@ -1,5 +1,5 @@
 #[test]
-fn startup_and_directory_events_report_accounts_and_respect_verbose_off() {
+fn startup_and_directory_events_report_identities_and_respect_verbose_off() {
     super::entry_reports("zsh", &["-fic"], "eval \"$(mgh init zsh)\"; cd OTHER");
 }
 

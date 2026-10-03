@@ -1,4 +1,4 @@
-use crate::support::{ACCOUNTS, Sandbox, terminal};
+use crate::support::{IDENTITIES, Sandbox, terminal};
 use std::{fs, os::unix::fs::PermissionsExt};
 
 const LOGIN: &str = r#"[{"login":"carol","active":true,"state":"success"}]"#;
@@ -12,19 +12,40 @@ const ARGS: &[&str] = &[
 ];
 
 #[test]
-fn new_authenticates_appends_preserves_existing_text_and_sets_up_the_identity() {
+fn new_authenticates_preserves_existing_data_and_comments_and_sets_up_the_identity() {
     let sandbox = Sandbox::new();
-    let original = format!("# My accounts\n{ACCOUNTS}");
+    let original = format!(
+        "// My identities\n{}",
+        IDENTITIES.replace(
+            "\"name\": \"Alice Example\",",
+            "\"name\": \"Alice Example\", // Commit name"
+        )
+    );
 
-    sandbox.write("config/multigh/accounts.conf", &original);
+    sandbox.write("config/multigh/identities.jsonc", &original);
     sandbox.write("login-accounts-json", LOGIN);
 
     let output = sandbox.ok("mgh", ARGS);
-    let accounts = fs::read_to_string(sandbox.path("config/multigh/accounts.conf")).unwrap();
+    let configuration =
+        fs::read_to_string(sandbox.path("config/multigh/identities.jsonc")).unwrap();
     let calls = fs::read_to_string(sandbox.path("gh-calls")).unwrap();
 
-    assert!(accounts.starts_with(&original));
-    assert!(accounts.contains("[work]\nusername = carol\nname = carol\nemail = carol@example.com"));
+    let saved: serde_json::Value =
+        jsonc_parser::parse_to_serde_value(&configuration, &Default::default()).unwrap();
+    let original_values: serde_json::Value =
+        jsonc_parser::parse_to_serde_value(&original, &Default::default()).unwrap();
+
+    for (key, value) in original_values.as_object().unwrap() {
+        assert_eq!(&saved[key], value);
+    }
+
+    assert!(configuration.starts_with("// My identities\n{\n    \"personal\": {"));
+    assert!(configuration.contains("// My identities") && configuration.contains("// Commit name"));
+    assert!(configuration.contains("\n    \"work\": {"));
+    assert_eq!(
+        saved["work"],
+        serde_json::json!({"username":"carol", "commit":{"name":"carol", "email":"carol@example.com"}})
+    );
     assert_eq!(
         calls
             .matches("auth login --hostname github.com --web")
@@ -32,11 +53,11 @@ fn new_authenticates_appends_preserves_existing_text_and_sets_up_the_identity() 
         1
     );
     assert!(calls.contains("auth switch --hostname github.com --user carol"));
-    assert!(output.contains("GitHub browser login") && output.contains("Account added · WORK"));
+    assert!(output.contains("GitHub browser login") && output.contains("Identity added · work"));
     assert!(
         output.contains(
             sandbox
-                .path("config/multigh/accounts.conf")
+                .path("config/multigh/identities.jsonc")
                 .to_str()
                 .unwrap()
         )
@@ -60,7 +81,7 @@ fn new_authenticates_appends_preserves_existing_text_and_sets_up_the_identity() 
             .is_file()
     );
     assert_eq!(
-        fs::metadata(sandbox.path("config/multigh/accounts.conf"))
+        fs::metadata(sandbox.path("config/multigh/identities.jsonc"))
             .unwrap()
             .permissions()
             .mode()
@@ -126,46 +147,54 @@ fn new_reuses_an_existing_login_and_optionally_authorizes_the_repository() {
 }
 
 #[test]
-fn new_creates_a_first_account_in_the_default_or_explicit_config_location() {
+fn new_creates_a_first_identity_in_the_default_or_explicit_config_location() {
     for explicit in [false, true] {
         let sandbox = Sandbox::new();
 
-        fs::remove_file(sandbox.path("config/multigh/accounts.conf")).unwrap();
+        fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
         sandbox.write("accounts-json", LOGIN);
 
         let mut args = Vec::new();
 
         if explicit {
-            args.extend(["--config", "../custom/accounts.conf"]);
+            args.extend(["--config", "../custom/identities.jsonc"]);
         }
 
         args.extend_from_slice(ARGS);
 
         let output = sandbox.ok("mgh", &args);
         let path = sandbox.path(if explicit {
-            "custom/accounts.conf"
+            "custom/identities.jsonc"
         } else {
-            "config/multigh/accounts.conf"
+            "config/multigh/identities.jsonc"
         });
 
         assert!(path.is_file());
+        assert!(
+            fs::read_to_string(&path)
+                .unwrap()
+                .contains("\n    \"work\": {")
+        );
         assert!(output.contains(if explicit {
-            "custom/accounts.conf"
+            "custom/identities.jsonc"
         } else {
-            "config/multigh/accounts.conf"
+            "config/multigh/identities.jsonc"
         }));
-        assert!(!fs::read_to_string(path).unwrap().contains("[personal]"));
+        let saved: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+
+        assert!(saved.get("personal").is_none());
         sandbox.ok(
             "mgh",
             &if explicit {
-                vec!["--config", "../custom/accounts.conf", "setup"]
+                vec!["--config", "../custom/identities.jsonc", "setup"]
             } else {
                 vec!["setup"]
             },
         );
 
         if explicit {
-            assert!(!sandbox.path("config/multigh/accounts.conf").exists());
+            assert!(!sandbox.path("config/multigh/identities.jsonc").exists());
             assert_eq!(
                 fs::metadata(sandbox.path("custom"))
                     .unwrap()
@@ -187,7 +216,7 @@ fn new_prompts_for_missing_fields_and_uses_the_default_commit_name() {
     let (status, output) = terminal(
         sandbox.command("mgh").arg("new"),
         &[
-            ("Account alias: ", b"Work\r"),
+            ("Identity name: ", b"Work\r"),
             ("GitHub username: ", b"carol\r"),
             ("Commit name (default: carol): ", b"\r"),
             ("Commit email: ", b"carol@example.com\r"),
@@ -199,11 +228,13 @@ fn new_prompts_for_missing_fields_and_uses_the_default_commit_name() {
     assert!(!output.contains("New GitHub account"), "{output}");
     assert!(output.contains("Identity details entered"), "{output}");
     assert!(output.contains("carol (default)"), "{output}");
-    assert!(
-        fs::read_to_string(sandbox.path("config/multigh/accounts.conf"))
-            .unwrap()
-            .contains("[work]\nusername = carol\nname = carol")
-    );
+    let saved: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(sandbox.path("config/multigh/identities.jsonc")).unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(saved["work"]["username"], "carol");
+    assert_eq!(saved["work"]["commit"]["name"], "carol");
 }
 
 #[test]
@@ -235,12 +266,12 @@ fn new_commit_name_prompt_accepts_an_override_and_shows_the_username_default() {
 #[test]
 fn new_cancelled_prompts_and_missing_noninteractive_fields_leave_settings_intact() {
     let sandbox = Sandbox::new();
-    let original = fs::read(sandbox.path("config/multigh/accounts.conf")).unwrap();
+    let original = fs::read(sandbox.path("config/multigh/identities.jsonc")).unwrap();
     let global = fs::read(sandbox.path("gitconfig")).unwrap();
     for keys in [b"\x1b".as_slice(), b"\x03".as_slice()] {
         let (status, output) = terminal(
             sandbox.command("mgh").arg("new"),
-            &[("Account alias", keys)],
+            &[("Identity name", keys)],
         );
 
         assert!(!status.success(), "{output}");
@@ -256,14 +287,14 @@ fn new_cancelled_prompts_and_missing_noninteractive_fields_leave_settings_intact
     );
     assert_eq!(
         original,
-        fs::read(sandbox.path("config/multigh/accounts.conf")).unwrap()
+        fs::read(sandbox.path("config/multigh/identities.jsonc")).unwrap()
     );
     assert_eq!(global, fs::read(sandbox.path("gitconfig")).unwrap());
     assert!(!sandbox.path("gh-calls").exists());
 }
 
 #[test]
-fn new_rejects_duplicates_invalid_fields_and_injected_sections_before_authentication() {
+fn new_rejects_duplicates_invalid_fields_and_multiline_values_before_authentication() {
     let cases = [
         (
             "PERSONAL",
@@ -294,11 +325,11 @@ fn new_rejects_duplicates_invalid_fields_and_injected_sections_before_authentica
             "cannot share",
         ),
         (
-            "bad alias",
+            "bad identity name",
             "carol",
             "carol@example.com",
             "Carol",
-            "Invalid account",
+            "Invalid identity",
         ),
         (
             "work",
@@ -324,16 +355,16 @@ fn new_rejects_duplicates_invalid_fields_and_injected_sections_before_authentica
         ),
     ];
 
-    for (alias, username, email, name, error) in cases {
+    for (identity_name, username, email, name, error) in cases {
         let sandbox = Sandbox::new();
-        let original = fs::read(sandbox.path("config/multigh/accounts.conf")).unwrap();
+        let original = fs::read(sandbox.path("config/multigh/identities.jsonc")).unwrap();
         let global = fs::read(sandbox.path("gitconfig")).unwrap();
 
         sandbox.blocked(
             "mgh",
             &[
                 "new",
-                alias,
+                identity_name,
                 "--username",
                 username,
                 "--email",
@@ -346,7 +377,7 @@ fn new_rejects_duplicates_invalid_fields_and_injected_sections_before_authentica
 
         assert_eq!(
             original,
-            fs::read(sandbox.path("config/multigh/accounts.conf")).unwrap()
+            fs::read(sandbox.path("config/multigh/identities.jsonc")).unwrap()
         );
         assert_eq!(global, fs::read(sandbox.path("gitconfig")).unwrap());
         assert!(!sandbox.path("gh-calls").exists());
@@ -357,7 +388,7 @@ fn new_rejects_duplicates_invalid_fields_and_injected_sections_before_authentica
 fn new_failed_login_wrong_account_and_expired_login_do_not_save_or_change_git() {
     for failure in ["login", "wrong-account", "expired"] {
         let sandbox = Sandbox::new();
-        let original = fs::read(sandbox.path("config/multigh/accounts.conf")).unwrap();
+        let original = fs::read(sandbox.path("config/multigh/identities.jsonc")).unwrap();
         let global = fs::read(sandbox.path("gitconfig")).unwrap();
 
         if failure == "login" {
@@ -378,7 +409,7 @@ fn new_failed_login_wrong_account_and_expired_login_do_not_save_or_change_git() 
 
         assert_eq!(
             original,
-            fs::read(sandbox.path("config/multigh/accounts.conf")).unwrap()
+            fs::read(sandbox.path("config/multigh/identities.jsonc")).unwrap()
         );
         assert_eq!(global, fs::read(sandbox.path("gitconfig")).unwrap());
         assert!(
@@ -390,17 +421,17 @@ fn new_failed_login_wrong_account_and_expired_login_do_not_save_or_change_git() 
 }
 
 #[test]
-fn new_detects_accounts_edited_during_browser_login_and_preserves_the_edits() {
+fn new_detects_configuration_edited_during_browser_login_and_preserves_the_edits() {
     let sandbox = Sandbox::new();
-    let modified = format!("# Edited during login\n{ACCOUNTS}");
+    let modified = format!("// Edited during login\n{IDENTITIES}");
 
     sandbox.write("login-accounts-json", LOGIN);
-    sandbox.write("login-accounts-conf", &modified);
-    sandbox.blocked("mgh", ARGS, "Accounts changed while signing in");
+    sandbox.write("login-identities-json", &modified);
+    sandbox.blocked("mgh", ARGS, "Configuration changed while signing in");
 
     assert_eq!(
         modified,
-        fs::read_to_string(sandbox.path("config/multigh/accounts.conf")).unwrap()
+        fs::read_to_string(sandbox.path("config/multigh/identities.jsonc")).unwrap()
     );
     assert!(
         !sandbox
@@ -410,7 +441,7 @@ fn new_detects_accounts_edited_during_browser_login_and_preserves_the_edits() {
 }
 
 #[test]
-fn new_keeps_the_account_and_reports_recovery_when_setup_or_switch_fails() {
+fn new_keeps_the_identity_and_reports_recovery_when_setup_or_switch_fails() {
     for failure in ["setup", "switch"] {
         let sandbox = Sandbox::new();
 
@@ -425,12 +456,12 @@ fn new_keeps_the_account_and_reports_recovery_when_setup_or_switch_fails() {
             sandbox.write("fail-switch", "");
         }
 
-        sandbox.blocked("mgh", ARGS, "Account saved in");
+        sandbox.blocked("mgh", ARGS, "Identity saved in");
 
         assert!(
-            fs::read_to_string(sandbox.path("config/multigh/accounts.conf"))
+            fs::read_to_string(sandbox.path("config/multigh/identities.jsonc"))
                 .unwrap()
-                .contains("[work]")
+                .contains("\"work\"")
         );
         assert_eq!(
             sandbox.ok("git", &["config", "--global", "user.email"]),
@@ -443,21 +474,21 @@ fn new_keeps_the_account_and_reports_recovery_when_setup_or_switch_fails() {
 fn new_rejects_invalid_existing_configs_symlinks_and_repo_option_outside_a_repository() {
     let sandbox = Sandbox::new();
 
-    sandbox.write("config/multigh/accounts.conf", "invalid = account\n");
-    sandbox.blocked("mgh", ARGS, "Account fields must be inside");
+    sandbox.write("config/multigh/identities.jsonc", "invalid = account\n");
+    sandbox.blocked("mgh", ARGS, "invalid identity configuration");
 
-    fs::remove_file(sandbox.path("config/multigh/accounts.conf")).unwrap();
-    sandbox.write("target.conf", ACCOUNTS);
+    fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
+    sandbox.write("target.json", IDENTITIES);
     std::os::unix::fs::symlink(
-        sandbox.path("target.conf"),
-        sandbox.path("config/multigh/accounts.conf"),
+        sandbox.path("target.json"),
+        sandbox.path("config/multigh/identities.jsonc"),
     )
     .unwrap();
-    sandbox.blocked("mgh", ARGS, "Accounts file is a symlink");
+    sandbox.blocked("mgh", ARGS, "Configuration file is a symlink");
 
     assert_eq!(
-        fs::read_to_string(sandbox.path("target.conf")).unwrap(),
-        ACCOUNTS
+        fs::read_to_string(sandbox.path("target.json")).unwrap(),
+        IDENTITIES
     );
 
     let output = sandbox
@@ -482,7 +513,7 @@ fn new_does_not_create_a_config_after_failed_login_and_keeps_custom_recovery_pat
         "mgh",
         &[
             "--config",
-            "../custom/accounts.conf",
+            "../custom/identities.jsonc",
             "new",
             "work",
             "--username",
@@ -493,7 +524,7 @@ fn new_does_not_create_a_config_after_failed_login_and_keeps_custom_recovery_pat
         "command failed",
     );
 
-    assert!(!sandbox.path("custom/accounts.conf").exists());
+    assert!(!sandbox.path("custom/identities.jsonc").exists());
     assert_eq!(fs::read_dir(sandbox.path("custom")).unwrap().count(), 0);
 
     fs::remove_file(sandbox.path("fail-login")).unwrap();
@@ -504,7 +535,7 @@ fn new_does_not_create_a_config_after_failed_login_and_keeps_custom_recovery_pat
         "mgh",
         &[
             "--config",
-            "../custom/accounts.conf",
+            "../custom/identities.jsonc",
             "new",
             "work",
             "--username",
@@ -519,9 +550,9 @@ fn new_does_not_create_a_config_after_failed_login_and_keeps_custom_recovery_pat
     assert!(!output.status.success());
     assert!(
         error.contains("--config")
-            && error.contains("custom/accounts.conf")
+            && error.contains("custom/identities.jsonc")
             && error.contains("switch work --repo"),
         "{error}"
     );
-    assert!(sandbox.path("custom/accounts.conf").is_file());
+    assert!(sandbox.path("custom/identities.jsonc").is_file());
 }

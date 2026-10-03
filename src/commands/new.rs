@@ -1,11 +1,16 @@
-use crate::{config::Config, git, github, output, policy, process};
+use crate::{
+    config::{Config, JSONC},
+    git, github, output, policy, process,
+};
 use anyhow::{Context, Result, ensure};
+use jsonc_parser::{cst::CstRootNode, json};
+use serde::Serialize;
 use std::{fs, io::Write, path::PathBuf};
 use tempfile::NamedTempFile;
 
 pub fn run(
     path: PathBuf,
-    alias: Option<String>,
+    identity_name: Option<String>,
     username: Option<String>,
     email: Option<String>,
     name: Option<String>,
@@ -17,7 +22,7 @@ pub fn run(
     );
     ensure!(
         !fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.file_type().is_symlink()),
-        "Accounts file is a symlink; use --config with its target: {}",
+        "Configuration file is a symlink; use --config with its target: {}",
         path.display()
     );
 
@@ -37,7 +42,7 @@ pub fn run(
         output::section("Add new identity");
     }
 
-    let alias = field(alias, "Account alias", None)?.to_ascii_lowercase();
+    let identity_name = field(identity_name, "Identity name", None)?.to_ascii_lowercase();
     let username = field(username, "GitHub username", None)?;
     let name = field(name, "Commit name", Some(&username))?;
     let email = field(email, "Commit email", None)?;
@@ -46,23 +51,23 @@ pub fn run(
         cliclack::outro("Identity details entered")?;
     }
 
-    for value in [&alias, &username, &name, &email] {
+    for value in [&identity_name, &username, &name, &email] {
         ensure!(
             !value.chars().any(char::is_control),
-            "Account fields must be single-line values"
+            "Identity fields must be single-line values"
         );
     }
 
     ensure!(
         existing
             .as_ref()
-            .is_none_or(|config| !config.accounts.contains_key(&alias)),
-        "Account '{alias}' already exists"
+            .is_none_or(|config| !config.identities.contains_key(&identity_name)),
+        "Identity '{identity_name}' already exists"
     );
 
     let parent = path
         .parent()
-        .context("Accounts file has no parent directory")?;
+        .context("Configuration file has no parent directory")?;
     let create_parent = !parent.exists();
 
     fs::create_dir_all(parent)?;
@@ -74,13 +79,33 @@ pub fn run(
     let mut pending = NamedTempFile::new_in(parent)?;
 
     if let Some(original) = &original {
-        write!(pending, "{original}\n\n")?;
-    }
+        let document = CstRootNode::parse(original, &JSONC)?;
 
-    writeln!(
-        pending,
-        "[{alias}]\nusername = {username}\nname = {name}\nemail = {email}"
-    )?;
+        document
+            .object_value()
+            .context("Configuration must be an object")?
+            .append(
+                &identity_name,
+                json!({
+                    "username": (username.as_str()),
+                    "commit": {"name": name, "email": email}
+                }),
+            );
+
+        write!(pending, "{document}")?;
+    } else {
+        let document = serde_json::json!({
+            identity_name.as_str(): {
+                "username": username,
+                "commit": {"name": name, "email": email}
+            }
+        });
+        let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
+        let mut serializer = serde_json::Serializer::with_formatter(&mut pending, formatter);
+
+        document.serialize(&mut serializer)?;
+        writeln!(pending)?;
+    }
 
     let mut config = Config::load(pending.path().to_owned())?;
 
@@ -95,14 +120,14 @@ pub fn run(
     ensure!(
         current == original
             && !fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.file_type().is_symlink()),
-        "Accounts changed while signing in; run mgh new again"
+        "Configuration changed while signing in; run mgh new again"
     );
 
     git::private(pending.path(), false)?;
     pending.persist(&path)?;
     config.path = path;
 
-    output::section(&format!("✓ Account added · {}", alias.to_uppercase()));
+    output::section(&format!("✓ Identity added · {}", identity_name));
     output::row(
         "Accounts",
         &config.path.to_string_lossy(),
@@ -110,12 +135,12 @@ pub fn run(
     );
 
     super::setup(&config)
-        .and_then(|()| super::switch::run(&config, &alias, repo))
+        .and_then(|()| super::switch::run(&config, &identity_name, repo))
         .with_context(|| {
             let config_option = format!("--config {}", process::quote(&config.path.to_string_lossy()));
 
             format!(
-                "Account saved in {}. After fixing the problem, run mgh {config_option} setup and mgh {config_option} switch {alias}{}",
+                "Identity saved in {}. After fixing the problem, run mgh {config_option} setup and mgh {config_option} switch {identity_name}{}",
                 config.path.display(),
                 if repo { " --repo" } else { "" }
             )
@@ -129,7 +154,7 @@ fn field(value: Option<String>, label: &str, default: Option<&str>) -> Result<St
 
     if !policy::interactive() {
         return default.map(str::to_owned).with_context(|| {
-            format!("{label} requires a terminal; supply the alias, --username and --email")
+            format!("{label} requires a terminal; supply the identity name, --username and --email")
         });
     }
 

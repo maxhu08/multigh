@@ -5,7 +5,7 @@ use std::fs;
 fn all_completion_targets_work_without_configuration_or_authentication() {
     let sandbox = Sandbox::new();
 
-    fs::remove_file(sandbox.path("config/multigh/accounts.conf")).unwrap();
+    fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
 
     for shell in ["fish", "bash", "zsh", "powershell", "elvish"] {
         let text = sandbox.ok("mgh", &["completions", shell]);

@@ -28,7 +28,7 @@ fn repository_hook_paths_keep_checks_and_push_input_with_mgh() {
     let entry = sandbox.ok("mgh", &["enter"]);
 
     assert!(entry.contains("Existing hooks detected"));
-    assert!(entry.contains("Account protections are active; your existing checks are preserved."));
+    assert!(entry.contains("Identity protections are active; your existing checks are preserved."));
     assert!(
         entry
             .lines()
@@ -116,7 +116,7 @@ fn repository_hook_paths_keep_checks_and_push_input_with_mgh() {
     assert!(
         !sandbox
             .ok("mgh", &["enter"])
-            .contains("Account protections are active;")
+            .contains("Identity protections are active;")
     );
 
     sandbox.blocked(

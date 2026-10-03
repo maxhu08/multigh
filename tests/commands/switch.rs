@@ -30,7 +30,7 @@ fn switch_updates_authentication_and_global_identity_without_authorizing_the_rep
             .success()
     );
     assert!(text.contains("→ bob"));
-    assert!(!text.contains("Account file") && !text.contains("accounts.conf"));
+    assert!(!text.contains("Account file") && !text.contains("identities.jsonc"));
 
     let outside = sandbox
         .command("mgh")
@@ -97,7 +97,7 @@ fn failed_or_invalid_switches_do_not_change_authentication_or_commit_defaults() 
 
     let original = fs::read(sandbox.path("gitconfig")).unwrap();
 
-    sandbox.blocked("mgh", &["switch", "missing"], "Unknown account");
+    sandbox.blocked("mgh", &["switch", "missing"], "Unknown identity");
 
     assert_eq!(original, fs::read(sandbox.path("gitconfig")).unwrap());
 

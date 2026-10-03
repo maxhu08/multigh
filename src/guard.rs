@@ -1,11 +1,11 @@
 use crate::{
-    config::{Account, Config},
+    config::{Config, Identity},
     git, github, policy,
 };
 use anyhow::{Result, ensure};
 use std::collections::BTreeSet;
 
-pub fn identity(alias: &str, account: &Account) -> Result<()> {
+pub fn commit_details(identity_name: &str, identity: &Identity) -> Result<()> {
     for kind in ["AUTHOR", "COMMITTER"] {
         let value = git::run(&["var", &format!("GIT_{kind}_IDENT")])?;
         let parsed = value
@@ -13,9 +13,11 @@ pub fn identity(alias: &str, account: &Account) -> Result<()> {
             .and_then(|(name, rest)| rest.split_once('>').map(|(email, _)| (name, email)));
 
         ensure!(
-            parsed.is_some_and(|(name, email)| name == account.name
-                && account.emails.contains(&email.to_ascii_lowercase())),
-            "{kind} identity does not match [{alias}]: {value}\nRun: mgh switch {alias} --repo\nWhen amending an old commit, also use --reset-author."
+            parsed.is_some_and(|(name, email)| name == identity.commit_name
+                && identity
+                    .allowed_emails
+                    .contains(&email.to_ascii_lowercase())),
+            "{kind} commit details do not match identity [{identity_name}]: {value}\nRun: mgh switch {identity_name} --repo\nWhen amending an old commit, also use --reset-author."
         );
     }
 
@@ -28,15 +30,15 @@ pub fn check(config: &Config) -> Result<()> {
     }
 
     let allowed = policy::allowed(config)?;
-    let alias = policy::active(config, &allowed, &github::active()?)?;
+    let identity_name = policy::active(config, &allowed, &github::active()?)?;
 
-    identity(&alias, config.account(&alias)?)
+    commit_details(&identity_name, config.identity(&identity_name)?)
 }
 
 pub fn push(config: &Config, updates: &str) -> Result<()> {
     let allowed = policy::allowed(config)?;
-    let alias = policy::active(config, &allowed, &github::active()?)?;
-    let account = config.account(&alias)?;
+    let identity_name = policy::active(config, &allowed, &github::active()?)?;
+    let identity = config.identity(&identity_name)?;
 
     let mut checked = BTreeSet::new();
 
@@ -81,7 +83,7 @@ pub fn push(config: &Config, updates: &str) -> Result<()> {
                 continue;
             }
 
-            ensure!(commit.len() == 5, "Cannot parse outgoing commit identities");
+            ensure!(commit.len() == 5, "Cannot parse outgoing commit details");
 
             let oid = commit[0].trim();
 
@@ -89,27 +91,27 @@ pub fn push(config: &Config, updates: &str) -> Result<()> {
                 continue;
             }
 
-            for (other_alias, other) in &config.accounts {
-                if allowed.contains(other_alias) {
+            for (other_identity_name, other) in &config.identities {
+                if allowed.contains(other_identity_name) {
                     continue;
                 }
 
                 let wrong_name = [commit[1], commit[3]].iter().any(|name| {
                     (name.eq_ignore_ascii_case(&other.username)
-                        || name.eq_ignore_ascii_case(&other.name))
-                        && !name.eq_ignore_ascii_case(&account.name)
-                        && !name.eq_ignore_ascii_case(&account.username)
+                        || name.eq_ignore_ascii_case(&other.commit_name))
+                        && !name.eq_ignore_ascii_case(&identity.commit_name)
+                        && !name.eq_ignore_ascii_case(&identity.username)
                 });
                 let wrong_email = [commit[2], commit[4]]
                     .iter()
-                    .any(|email| other.emails.contains(&email.to_ascii_lowercase()));
+                    .any(|email| other.allowed_emails.contains(&email.to_ascii_lowercase()));
 
                 ensure!(
                     !wrong_name && !wrong_email,
                     "Push blocked: commit {} contains your {} identity in a {} repository.\nCorrect the affected commit before pushing.",
                     &oid[..12],
-                    other.username,
-                    account.username
+                    other_identity_name,
+                    identity_name
                 );
             }
         }

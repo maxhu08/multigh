@@ -29,7 +29,7 @@ fn guards_actual_author_committer_and_authentication() {
             "-m",
             "Wrong identity",
         ],
-        "identity does not match",
+        "commit details do not match identity",
     );
     sandbox.blocked(
         "git",
@@ -40,7 +40,7 @@ fn guards_actual_author_committer_and_authentication() {
             "-m",
             "Wrong author",
         ],
-        "AUTHOR identity",
+        "AUTHOR commit details",
     );
 
     let output = sandbox
@@ -51,7 +51,7 @@ fn guards_actual_author_committer_and_authentication() {
         .unwrap();
 
     assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("COMMITTER identity"));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("COMMITTER commit details"));
 
     sandbox.commit();
 
@@ -89,7 +89,9 @@ fn name_overrides_are_rejected_and_email_case_does_not_reject_allowed_addresses(
             .unwrap();
 
         assert!(!output.status.success());
-        assert!(String::from_utf8_lossy(&output.stderr).contains(&format!("{kind} identity")));
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(&format!("{kind} commit details"))
+        );
     }
 
     sandbox.ok(
@@ -117,7 +119,7 @@ fn invalid_repo_pins_and_missing_live_authentication_fail_closed() {
     sandbox.blocked(
         "git",
         &["commit", "--allow-empty", "-m", "Bad policy"],
-        "Unknown account",
+        "Unknown identity",
     );
     sandbox.ok("mgh", &["protections", "--allow", "personal"]);
     sandbox.write("fail-auth", "");

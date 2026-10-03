@@ -34,11 +34,11 @@ fn legacy_guards_migrate_and_missing_config_fails_closed() {
         "legacy\n"
     );
 
-    fs::remove_file(sandbox.path("config/multigh/accounts.conf")).unwrap();
+    fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
     sandbox.blocked(
         "git",
         &["commit", "--allow-empty", "-m", "Missing config"],
-        "accounts.conf",
+        "identities.jsonc",
     );
     sandbox.ok("mgh", &["--help"]);
     sandbox.ok("mgh", &["completions", "fish"]);

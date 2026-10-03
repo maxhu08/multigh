@@ -91,10 +91,10 @@ fn cliclack_inputs_and_checklists_respect_no_color() {
         let sandbox = Sandbox::new();
 
         for (args, question, keys) in [
-            (vec!["new"], "Account alias: ", b"\x1b".as_slice()),
+            (vec!["new"], "Identity name: ", b"\x1b".as_slice()),
             (
                 vec!["protections", "--repo"],
-                "Which accounts may use this repository?",
+                "Which identities may use this repository?",
                 b" \r".as_slice(),
             ),
         ] {
@@ -118,7 +118,7 @@ fn cliclack_inputs_and_checklists_respect_no_color() {
 #[test]
 fn forms_with_redirected_stderr_reject_interaction_without_changing_settings() {
     let sandbox = Sandbox::new();
-    let before = std::fs::read(sandbox.path("config/multigh/accounts.conf")).unwrap();
+    let before = std::fs::read(sandbox.path("config/multigh/identities.jsonc")).unwrap();
 
     for (command, message) in [
         ("new", "requires a terminal"),
@@ -139,7 +139,7 @@ fn forms_with_redirected_stderr_reject_interaction_without_changing_settings() {
         );
         assert_eq!(
             before,
-            std::fs::read(sandbox.path("config/multigh/accounts.conf")).unwrap()
+            std::fs::read(sandbox.path("config/multigh/identities.jsonc")).unwrap()
         );
         assert!(!sandbox.path("gh-calls").exists());
     }

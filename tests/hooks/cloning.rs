@@ -11,7 +11,7 @@ fn setup_enables_modes_and_unconfigured_clones_stay_blocked() {
     sandbox.blocked(
         "git",
         &["commit", "--allow-empty", "-m", "Unconfigured"],
-        "No accounts are authorized",
+        "No identities are authorized",
     );
     sandbox.ok("mgh", &["protections", "--allow", "personal"]);
     sandbox.commit();
@@ -36,12 +36,12 @@ fn setup_enables_modes_and_unconfigured_clones_stay_blocked() {
             .unwrap();
 
         assert!(!result.status.success());
-        assert!(String::from_utf8_lossy(&result.stderr).contains("No accounts are authorized"));
+        assert!(String::from_utf8_lossy(&result.stderr).contains("No identities are authorized"));
     }
 }
 
 #[test]
-fn empty_clones_remain_blocked_until_accounts_are_selected() {
+fn empty_clones_remain_blocked_until_identities_are_selected() {
     let sandbox = Sandbox::new();
 
     sandbox.ok("mgh", &["setup"]);
@@ -60,7 +60,7 @@ fn empty_clones_remain_blocked_until_accounts_are_selected() {
         .unwrap();
 
     assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("No accounts are authorized"));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("No identities are authorized"));
 
     let output = sandbox
         .command("mgh")

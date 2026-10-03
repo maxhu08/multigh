@@ -40,7 +40,7 @@ fn legacy_commit_and_push_handlers_enforce_authentication_and_allow_off_without_
     assert!(String::from_utf8_lossy(&output.stderr).contains("GitHub is using bob"));
 
     sandbox.ok("mgh", &["protections", "off"]);
-    fs::remove_file(sandbox.path("config/multigh/accounts.conf")).unwrap();
+    fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
     sandbox.ok("mgh", &["hook", "commit"]);
     sandbox.ok("mgh", &["hook", "push", "origin", "../remote"]);
 }

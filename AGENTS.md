@@ -1,7 +1,7 @@
 # AGENTS.md
 
 multigh is a small Rust CLI with one executable, `mgh`. It keeps GitHub
-authentication, Git identities and repository account protections aligned.
+authentication, commit details and repository identity protections aligned.
 
 ## Coding Approach
 
@@ -54,12 +54,17 @@ authentication, Git identities and repository account protections aligned.
 
 - Keep argument definitions in `src/cli.rs` and command behavior in `src/commands/`.
 - Use clap for parsing, help and completions; cliclack for all interactive forms,
-  including text inputs and account checklists.
+  including text inputs and identity checklists.
 - Use the shared Git, process and output helpers instead of duplicating them.
-- Call generated account files identity files, use Identity for their output label,
-  and use identity names in code and tests.
-- Keep account aliases case insensitive and private account configuration outside
-  the repository. `example/accounts.conf` contains fictional example identities.
+- An identity is a configured name such as personal, school or work, mapped to a
+  GitHub account and commit details. Identity names are case insensitive. Keep
+  identity names distinct from GitHub usernames and commit names in code and output.
+- Call generated per-identity Git configs identity files and use Identity for their
+  output label. Store identities in JSONC keyed by case-insensitive names, with
+  username and nested commit details. Preserve comments and existing formatting
+  when editing. Keep existing Git policy keys compatible.
+- Keep private identity configuration outside the repository.
+  `examples/identities.jsonc` contains fictional example identities.
 - Preserve existing hook files, arguments, input, rejection behavior and config
   scope when changing hook integration. Check effective readiness before reporting
   that protections are active.
@@ -74,10 +79,10 @@ authentication, Git identities and repository account protections aligned.
 - Test observable behavior through the actual implementation; do not reproduce
   production logic inside tests.
 - Use real Git repositories, local remotes and real shells where practical.
-  Simulate GitHub authentication to keep tests offline and independent of accounts.
-- Isolate home, Git config, account config and state with `Sandbox` in `tests/support/`.
-  Tests must not change real account settings or user repositories.
-- Organize tests by behavior under `tests/accounts/`, `tests/commands/`,
+  Simulate GitHub authentication to keep tests offline and independent of identities.
+- Isolate home, Git config, identity config and state with `Sandbox` in `tests/support/`.
+  Tests must not change real identity settings or user repositories.
+- Organize tests by behavior under `tests/identities/`, `tests/commands/`,
   `tests/guards/`, `tests/hooks/` and `tests/shell/`. Reuse shared fixtures and helpers.
 - Cover successful operations, rejected operations and preservation of existing
   settings where relevant. Use terminal tests for keyboard-driven behavior.

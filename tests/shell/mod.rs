@@ -32,14 +32,14 @@ fn entry_reports(shell: &str, args: &[&str], script: &str) {
     let (status, output) = terminal(sandbox.command(shell).args(args).arg(&script), &[]);
 
     assert!(status.success(), "{output}");
-    assert_eq!(output.matches("Allowed accounts").count(), 2, "{output}");
+    assert_eq!(output.matches("Allowed identities").count(), 2, "{output}");
 
     sandbox.ok("mgh", &["verbose", "off"]);
 
     let (status, output) = terminal(sandbox.command(shell).args(args).arg(&script), &[]);
 
     assert!(status.success(), "{output}");
-    assert!(!output.contains("Allowed accounts"), "{output}");
+    assert!(!output.contains("Allowed identities"), "{output}");
 }
 
 fn startup_picker(shell: &str, args: &[&str], script: &str) {
@@ -50,7 +50,7 @@ fn startup_picker(shell: &str, args: &[&str], script: &str) {
 
     let (status, output) = terminal(
         sandbox.command(shell).args(args).arg(script),
-        &[("Which accounts may use this repository?", b" \r")],
+        &[("Which identities may use this repository?", b" \r")],
     );
 
     assert!(status.success(), "{output}");

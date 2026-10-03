@@ -31,7 +31,7 @@ fn disallowed_author_and_committer_names_block_even_with_unknown_emails() {
         sandbox.blocked(
             "git",
             &["push", "../remote.git", "HEAD:refs/heads/main"],
-            "contains your bob identity",
+            "contains your school identity",
         );
 
         assert!(
@@ -91,7 +91,7 @@ fn already_remote_commits_are_excluded_and_multiple_new_refs_are_checked() {
             "HEAD:refs/heads/main",
             "old-history:refs/heads/old-history",
         ],
-        "contains your bob identity",
+        "contains your school identity",
     );
 
     assert!(
@@ -187,5 +187,5 @@ fn sha256_repositories_check_outgoing_commits_using_full_length_ids() {
     );
 
     assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("contains your bob identity"));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("contains your school identity"));
 }

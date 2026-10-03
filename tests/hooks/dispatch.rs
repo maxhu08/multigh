@@ -7,7 +7,7 @@ fn every_installed_launcher_forwards_existing_hooks_when_protections_are_off() {
 
     sandbox.protect();
     sandbox.ok("mgh", &["protections", "off"]);
-    fs::remove_file(sandbox.path("config/multigh/accounts.conf")).unwrap();
+    fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
 
     for name in [
         "applypatch-msg",

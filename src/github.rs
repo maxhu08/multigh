@@ -1,4 +1,4 @@
-use crate::{config::Account, process};
+use crate::{config::Identity, process};
 use anyhow::{Result, ensure};
 use serde_json::Value;
 
@@ -41,7 +41,7 @@ pub fn accounts() -> Result<Vec<Value>> {
     Ok(serde_json::from_str(&data)?)
 }
 
-pub fn switch(account: &Account) -> Result<()> {
+pub fn switch(identity: &Identity) -> Result<()> {
     process::run(
         "gh",
         &[
@@ -50,7 +50,7 @@ pub fn switch(account: &Account) -> Result<()> {
             "--hostname",
             "github.com",
             "--user",
-            &account.username,
+            &identity.username,
         ],
     )?;
 

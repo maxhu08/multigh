@@ -1,11 +1,13 @@
 Details:
-    With no argument, print the selected GitHub account and effective commit
-    email under Identity when the welcome is enabled. Otherwise, print nothing.
-    on and off save the preference for future shells without switching accounts.
+    With no argument, show Identity personal on one heading line without a
+    separator, followed by the GitHub username and effective commit email, when
+    welcome is enabled. Otherwise, print nothing. on and off save the preference
+    without switching identities.
 
-    Add mgh welcome to your shell's startup greeting to display it automatically.
-    It reads the locally selected account for fast startup; use mgh status for
-    live authentication information. The preference is stored outside the repo.
+    Add mgh welcome to your shell's startup greeting to display it
+    automatically. It maps the locally selected GitHub account to an identity
+    for fast startup; use mgh status for live authentication information. The
+    preference is stored outside the repo.
 
 Examples:
     mgh welcome on

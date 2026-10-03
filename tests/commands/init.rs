@@ -2,10 +2,10 @@ use crate::support::Sandbox;
 use std::fs;
 
 #[test]
-fn init_emits_each_shell_handler_without_needing_accounts() {
+fn init_emits_each_shell_handler_without_needing_identities() {
     let sandbox = Sandbox::new();
 
-    fs::remove_file(sandbox.path("config/multigh/accounts.conf")).unwrap();
+    fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
 
     for shell in ["fish", "bash", "zsh"] {
         let script = sandbox.ok("mgh", &["init", shell]);

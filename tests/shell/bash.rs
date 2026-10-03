@@ -46,7 +46,7 @@ fn repeated_initialization_preserves_string_and_array_prompt_handlers() {
 
         assert!(status.success(), "{output}");
         assert_eq!(output.matches("preserved").count(), 1, "{output}");
-        assert_eq!(output.matches("Allowed accounts").count(), 1, "{output}");
+        assert_eq!(output.matches("Allowed identities").count(), 1, "{output}");
 
         if setup.contains("second") {
             assert!(output.contains("second"), "{output}");

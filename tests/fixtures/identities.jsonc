@@ -1,0 +1,22 @@
+{
+    "personal": {
+        "username": "alice",
+        "commit": {
+            "name": "Alice Example",
+            "email": "alice@example.com",
+            "additional_emails": [
+                "123+alice@users.noreply.github.com"
+            ]
+        }
+    },
+    "school": {
+        "username": "bob",
+        "commit": {
+            "name": "Bob Example",
+            "email": "bob@example.edu",
+            "additional_emails": [
+                "456+bob@users.noreply.github.com"
+            ]
+        }
+    }
+}

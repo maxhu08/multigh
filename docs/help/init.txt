@@ -1,6 +1,6 @@
 Details:
     Print the integration script for Fish, Bash or Zsh. Load it from your shell
-    configuration to prompt for missing repository accounts and print verbose
+    configuration to prompt for missing repository identities and print verbose
     entry reports. Install once; the protections and verbose toggles control it.
 
 Examples:

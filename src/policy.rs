@@ -22,22 +22,24 @@ pub fn allowed(config: &Config) -> Result<BTreeSet<String>> {
     let mut allowed = BTreeSet::new();
 
     if let Some(values) = explicit {
-        for alias in values.lines() {
-            config.account(alias)?;
-            allowed.insert(alias.to_ascii_lowercase());
+        for identity_name in values.lines() {
+            config.identity(identity_name)?;
+            allowed.insert(identity_name.to_ascii_lowercase());
         }
     } else {
-        let pinned = git::local("mgh.account")?.map(|alias| alias.to_ascii_lowercase());
-        let legacy = git::local("ghguard.account")?.map(|alias| alias.to_ascii_lowercase());
+        let pinned =
+            git::local("mgh.account")?.map(|identity_name| identity_name.to_ascii_lowercase());
+        let legacy =
+            git::local("ghguard.account")?.map(|identity_name| identity_name.to_ascii_lowercase());
 
         ensure!(
             pinned.is_none() || legacy.is_none() || pinned == legacy,
-            "Repository account settings conflict"
+            "Repository identity settings conflict"
         );
 
-        if let Some(alias) = pinned.or(legacy) {
-            config.account(&alias)?;
-            allowed.insert(alias);
+        if let Some(identity_name) = pinned.or(legacy) {
+            config.identity(&identity_name)?;
+            allowed.insert(identity_name);
         }
     }
 
@@ -47,16 +49,18 @@ pub fn allowed(config: &Config) -> Result<BTreeSet<String>> {
 pub fn active(config: &Config, allowed: &BTreeSet<String>, login: &str) -> Result<String> {
     ensure!(
         !allowed.is_empty(),
-        "No accounts are authorized for this repository.\nRun: mgh protections --repo"
+        "No identities are authorized for this repository.\nRun: mgh protections --repo"
     );
 
-    let alias = allowed
-        .iter()
-        .find(|alias| config.accounts[*alias].username.eq_ignore_ascii_case(login));
+    let identity_name = allowed.iter().find(|identity_name| {
+        config.identities[*identity_name]
+            .username
+            .eq_ignore_ascii_case(login)
+    });
 
     ensure!(
-        alias.is_some(),
-        "GitHub is using {login}, which is not allowed in this repository.\nAllowed accounts: {}\nRun: mgh switch <allowed-account>",
+        identity_name.is_some(),
+        "GitHub is using {login}, which is not allowed in this repository.\nAllowed identities: {}\nRun: mgh switch <allowed-identity>",
         allowed
             .iter()
             .map(String::as_str)
@@ -64,53 +68,66 @@ pub fn active(config: &Config, allowed: &BTreeSet<String>, login: &str) -> Resul
             .join(", ")
     );
 
-    Ok(alias.unwrap().clone())
+    Ok(identity_name.unwrap().clone())
 }
 
-pub fn identity(config: &Config, alias: &str) -> Result<()> {
-    let account = config.account(alias)?;
+pub fn identity(config: &Config, identity_name: &str) -> Result<()> {
+    let identity = config.identity(identity_name)?;
 
-    git::set("--local", "user.name", &account.name)?;
-    git::set("--local", "user.email", &account.email)?;
-    git::set("--local", "mgh.account", &alias.to_ascii_lowercase())?;
+    git::set("--local", "user.name", &identity.commit_name)?;
+    git::set("--local", "user.email", &identity.commit_email)?;
+    git::set(
+        "--local",
+        "mgh.account",
+        &identity_name.to_ascii_lowercase(),
+    )?;
 
     Ok(())
 }
 
-pub fn authorize(config: &Config, aliases: &[String]) -> Result<()> {
+pub fn authorize(config: &Config, identity_names: &[String]) -> Result<()> {
     ensure!(repository()?, "Run this command inside a Git repository");
 
-    let aliases: BTreeSet<_> = aliases
+    let identity_names: BTreeSet<_> = identity_names
         .iter()
-        .map(|alias| alias.to_ascii_lowercase())
+        .map(|identity_name| identity_name.to_ascii_lowercase())
         .collect();
 
-    ensure!(!aliases.is_empty(), "Select at least one allowed account");
+    ensure!(
+        !identity_names.is_empty(),
+        "Select at least one allowed identity"
+    );
 
-    for alias in &aliases {
-        config.account(alias)?;
+    for identity_name in &identity_names {
+        config.identity(identity_name)?;
     }
 
     let selected = github::selected()?.unwrap_or_default();
-    let preferred = aliases
+    let preferred = identity_names
         .iter()
-        .find(|alias| {
-            config.accounts[*alias]
+        .find(|identity_name| {
+            config.identities[*identity_name]
                 .username
                 .eq_ignore_ascii_case(&selected)
         })
-        .unwrap_or(aliases.first().unwrap());
+        .unwrap_or(identity_names.first().unwrap());
 
     git::run(&[
         "config",
         "--local",
         "--replace-all",
         "mgh.allowedAccount",
-        aliases.first().unwrap(),
+        identity_names.first().unwrap(),
     ])?;
 
-    for alias in aliases.iter().skip(1) {
-        git::run(&["config", "--local", "--add", "mgh.allowedAccount", alias])?;
+    for identity_name in identity_names.iter().skip(1) {
+        git::run(&[
+            "config",
+            "--local",
+            "--add",
+            "mgh.allowedAccount",
+            identity_name,
+        ])?;
     }
 
     identity(config, preferred)?;
@@ -129,7 +146,7 @@ pub fn interactive() -> bool {
 pub fn choose(config: &Config) -> Result<()> {
     ensure!(
         interactive(),
-        "Account selection needs an interactive terminal.\nRun: mgh protections --repo\nFor automation: mgh protections --allow personal,school,work"
+        "Identity selection needs an interactive terminal.\nRun: mgh protections --repo\nFor automation: mgh protections --allow personal,school,work"
     );
 
     let current: BTreeSet<_> =
@@ -149,18 +166,18 @@ pub fn choose(config: &Config) -> Result<()> {
 
     cliclack::intro(format!("Repository · {location}"))?;
 
-    let mut prompt = cliclack::multiselect("Which accounts may use this repository?")
+    let mut prompt = cliclack::multiselect("Which identities may use this repository?")
         .initial_values(current.into_iter().collect())
         .max_rows(7);
 
-    for (alias, account) in &config.accounts {
-        prompt = prompt.item(alias.clone(), alias, &account.username);
+    for (identity_name, identity) in &config.identities {
+        prompt = prompt.item(identity_name.clone(), identity_name, &identity.username);
     }
 
     let selected = prompt.interact()?;
 
     authorize(config, &selected)?;
-    cliclack::outro("Allowed accounts saved")?;
+    cliclack::outro("Allowed identities saved")?;
 
     show(config)
 }
@@ -168,14 +185,18 @@ pub fn choose(config: &Config) -> Result<()> {
 pub fn show(config: &Config) -> Result<()> {
     let allowed = allowed(config)?;
 
-    output::section("Allowed accounts");
+    output::section("Allowed identities");
 
     if allowed.is_empty() {
-        output::row("Repository", "No accounts selected", Color::Warning);
+        output::row("Repository", "No identities selected", Color::Warning);
     }
 
-    for alias in allowed {
-        output::row(&alias, &config.account(&alias)?.username, Color::Value);
+    for identity_name in allowed {
+        output::row(
+            &identity_name,
+            &config.identity(&identity_name)?.username,
+            Color::Value,
+        );
     }
 
     println!();

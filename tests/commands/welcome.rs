@@ -2,12 +2,37 @@ use crate::support::Sandbox;
 use std::fs;
 
 #[test]
+fn welcome_shows_identity_in_the_heading_without_a_separator() {
+    let sandbox = Sandbox::new();
+
+    sandbox.write(
+        "config/multigh/identities.jsonc",
+        r#"{"PeRsOnAl": {"username": "alice", "commit": {"email": "alice@example.com"}}}"#,
+    );
+    sandbox.write("selected", "ALICE\n");
+    sandbox.ok("mgh", &["welcome", "on"]);
+
+    let output = sandbox.ok("mgh", &["welcome"]);
+
+    assert!(
+        output.contains("Identity personal\n  GitHub username  ALICE"),
+        "{output}"
+    );
+    assert!(
+        !output.contains("Selected identity")
+            && !output.contains("·")
+            && !output.contains("(personal)"),
+        "{output}"
+    );
+}
+
+#[test]
 fn welcome_preferences_work_without_config_and_do_not_modify_git_or_auth() {
     let sandbox = Sandbox::new();
 
     let before = fs::read(sandbox.path("gitconfig")).unwrap();
 
-    fs::remove_file(sandbox.path("config/multigh/accounts.conf")).unwrap();
+    fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
 
     assert!(sandbox.ok("mgh", &["welcome"]).is_empty());
 
@@ -40,9 +65,8 @@ fn welcome_uses_local_selection_and_reports_repo_or_identity_mismatches() {
 
     let text = sandbox.ok("mgh", &["welcome"]);
 
-    assert!(text.starts_with("\n  Identity\n"));
-    assert!(!text.contains("GitHub"));
-    assert!(text.contains("Selected account bob"));
+    assert!(text.starts_with("\n  Identity school\n"));
+    assert!(text.contains("GitHub username  bob"));
     assert!(text.contains("mgh switch personal"));
     assert!(!text.contains("~~~"));
 
@@ -56,7 +80,7 @@ fn welcome_uses_local_selection_and_reports_repo_or_identity_mismatches() {
     assert!(
         sandbox
             .ok("mgh", &["welcome"])
-            .contains("Commit identity needs: mgh switch personal")
+            .contains("Commit details need: mgh switch personal")
     );
 
     sandbox.ok("git", &["config", "--local", "user.name", "Alice Example"]);
@@ -73,7 +97,7 @@ fn welcome_uses_local_selection_and_reports_repo_or_identity_mismatches() {
     assert!(
         !sandbox
             .ok("mgh", &["welcome"])
-            .contains("Commit identity needs:")
+            .contains("Commit details need:")
     );
 }
 
@@ -87,9 +111,9 @@ fn welcome_handles_unavailable_selection_and_missing_config_without_breaking_sta
 
     assert!(sandbox.ok("mgh", &["welcome"]).contains("unavailable"));
 
-    fs::remove_file(sandbox.path("config/multigh/accounts.conf")).unwrap();
+    fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
 
     let welcome = sandbox.ok("mgh", &["welcome"]);
 
-    assert!(welcome.contains("Selected account") && welcome.contains("Read "));
+    assert!(welcome.contains("GitHub username  unavailable") && welcome.contains("Read "));
 }

@@ -1,8 +1,8 @@
 #![cfg(unix)]
 
-mod accounts;
 mod commands;
 mod guards;
 mod hooks;
+mod identities;
 mod shell;
 mod support;

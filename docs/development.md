@@ -10,13 +10,13 @@ change when code changes their behavior or make their guidance inaccurate.
 | --- | --- |
 | `main.rs` | Parse arguments, dispatch commands and report errors. |
 | `cli.rs` | Define clap commands, flags and help. |
-| `commands/` | Implement account creation, switching, status, welcome, modes and repo entry. |
-| `config.rs` | Load and validate account mappings. |
+| `commands/` | Implement identity creation, switching, status, welcome, modes and repo entry. |
+| `config.rs` | Load and validate identity mappings. |
 | `git.rs` | Read Git settings and maintain conditional identity files. |
 | `github.rs` | Read, verify browser login or switch GitHub CLI authentication. |
-| `policy.rs` | Store allowed accounts, choose them with cliclack, and select identities. |
+| `policy.rs` | Store allowed identities, choose them with cliclack, and select identities. |
 | `hooks.rs` | Install shared hooks, dispatch checks and forward existing hooks. |
-| `guard.rs` | Validate live authentication, commit identities and outgoing history. |
+| `guard.rs` | Validate live authentication, commit details and outgoing history. |
 | `settings.rs` | Store preference markers in the private state directory. |
 | `output.rs` | Format output with spacing and optional color. |
 | `process.rs` | Capture or inherit external command I/O and quote shell arguments. |
@@ -24,14 +24,14 @@ change when code changes their behavior or make their guidance inaccurate.
 
 CLI summaries and options are clap attributes. Detailed help is embedded from
 `docs/help/` into both `-h` and `--help`. All interactive forms use cliclack. The
-account checklist uses multiselect with Space toggling, saved initial selections,
+identity checklist uses multiselect with Space toggling, saved initial selections,
 seven visible rows and at least one selection required. Esc and Ctrl+C cancel
 without saving; entry catches returned cancellation errors and keeps an
 unconfigured repo blocked. Text inputs and checklists use cliclack intro/outro session framing.
 Forms render on stderr, so `policy::interactive` requires stdin, stdout and stderr
 to be terminals. Noninteractive configuration continues using clap options.
 
-`commands/new.rs` uses cliclack input prompts for missing account fields, or accepts
+`commands/new.rs` uses cliclack input prompts for missing identity fields, or accepts
 clap options for noninteractive configuration. The heading is Add new identity;
 labels use a colon and space and show the username in the commit-name default.
 Native `default_input` displays and saves the commit-name default on Enter;
@@ -40,18 +40,22 @@ validation, preserving existing rejection behavior.
 It validates existing config and the combined file through `Config::load` before
 authentication. New fields must be single-line values. A private temporary file in the destination directory
 preserves existing text and is atomically persisted after `github::login` confirms
-a successful matching account, ignoring username case. Existing symlinks are
+a successful matching GitHub account, ignoring username case. Existing symlinks are
 rejected, and edits made during login are detected before replacement.
 GitHub login inherits terminal I/O so browser/device instructions remain visible.
 After saving, the command reuses setup and switch, including their provenance
 comments and output. Errors after saving include recovery guidance and retain the
-account. Only explicit `--repo` expands repository authorization.
+identity. Only explicit `--repo` expands repository authorization.
 
-Status renders signed-in accounts as stacked identity entries. It matches logins
-to account configuration ignoring case, uses each configured commit email and
-identity filepath, and marks the live active account in green. Missing mappings
-remain visible as unconfigured. Global commit defaults are omitted from this
-report; repository identity checks and full authentication output remain intact.
+Status renders each configured identity name above labeled GitHub username,
+commit name, commit email and generated filepath rows. It matches each identity's GitHub username to live
+GitHub CLI accounts ignoring case, marking the active identity in green and
+identities without a login as Not signed in. Unmapped GitHub logins are reported
+separately. Global commit defaults are omitted; repository checks and full
+authentication output remain intact. Welcome maps gh's locally selected login to
+an identity name without a live authentication request, and prints that name
+in parentheses beside the GitHub username. The effective commit email remains
+on its own row.
 
 Global mutations use `git::update_global` and its `GlobalConfig` writer to attach
 the originating command and collect a single change notice, including changes
@@ -89,14 +93,33 @@ hook. Other hooks inherit input normally. Only commit, merge-commit, push and
 initial checkout have mgh behavior; other standard hooks forward existing hooks.
 
 Fish entry restores terminal input when the init script is piped into `source`,
-so the account checklist can still read the keyboard. Explicit `--config` paths
+so the identity checklist can still read the keyboard. Explicit `--config` paths
 are resolved without requiring the default home or config directory.
 
-Account aliases use lowercase keys and identity filenames internally. Lookups,
-allowed-list entries and legacy pins ignore case. Duplicate sections differing
-only in case are rejected before Git settings change.
+`config::Identity` holds a configured identity's GitHub username, commit name,
+commit email and allowed emails; `Config::identities` is keyed by identity name.
+Identity names use lowercase keys and identity filenames internally. Lookups,
+allowed-list entries and legacy pins ignore case. Duplicate identity keys differing
+only in case are rejected before Git settings change. The saved Git keys `mgh.account`, `mgh.allowedAccount` and legacy
+`ghguard.account` keep their existing names for compatibility. Their values are
+identity names, not GitHub usernames.
 
-Account configuration guidance is in [Usage](usage.md#accounts). The sample config
+Configuration is loaded from `identities.jsonc`, with identity names as keys
+and nested `commit.name`, `commit.email` and `commit.additional_emails` fields.
+`jsonc-parser` uses typed Serde deserialization to reject unknown or duplicate
+fields. A root map visitor normalizes identity keys and rejects exact and
+case-colliding duplicates before values can overwrite them. Explicit parser
+options allow comments and trailing commas, while rejecting other JSON extensions.
+Primary and additional emails are merged into the runtime allowed-email set.
+
+`mgh new` validates the existing configuration and edits its concrete syntax tree
+using `jsonc-parser`'s `cst` feature. This preserves existing comments, field order
+and formatting while appending an identity. New files use four-space indentation.
+The pending file is validated before authentication and saved atomically with
+private permissions only if the original file remains unchanged. Failed input or
+login leaves the original bytes unchanged.
+
+Identity configuration guidance is in [Usage](usage.md#identities). The sample config
 contains brief user guidance; implementation explanations live here and in the
 [guard documentation](../README.md#how-the-guard-works). Cargo manages Cargo.lock,
 including its generated header. The root .editorconfig sets four-space indentation.
@@ -109,7 +132,7 @@ cargo test --all-targets
 cargo clippy --all-targets -- -D warnings
 ```
 
-Tests are organized under `tests/accounts/`, `tests/commands/`, `tests/guards/`,
+Tests are organized under `tests/identities/`, `tests/commands/`, `tests/guards/`,
 `tests/hooks/` and `tests/shell/`, with shared isolated setup in `tests/support/`.
 The [testing guide](testing.md) maps behaviors to files, lists prerequisites and
 explains focused runs and isolation. Git and the shells are real; GitHub account

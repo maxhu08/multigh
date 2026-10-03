@@ -1,4 +1,4 @@
-use crate::support::{ACCOUNTS, Sandbox};
+use crate::support::{IDENTITIES, Sandbox};
 use std::fs;
 
 #[test]
@@ -6,10 +6,10 @@ fn push_checks_outgoing_commits_and_chains_hook_input() {
     let sandbox = Sandbox::new();
 
     sandbox.write(
-        "config/multigh/accounts.conf",
-        &ACCOUNTS
-            .replace("[personal]", "[PeRsOnAl]")
-            .replace("[school]", "[SCHOOL]"),
+        "config/multigh/identities.jsonc",
+        &IDENTITIES
+            .replace("\"personal\"", "\"PeRsOnAl\"")
+            .replace("\"school\"", "\"SCHOOL\""),
     );
     sandbox.executable(
         "repo/.git/hooks/pre-push",
@@ -47,7 +47,7 @@ fn push_checks_outgoing_commits_and_chains_hook_input() {
     sandbox.blocked(
         "git",
         &["push", "origin", "main"],
-        "contains your bob identity",
+        "contains your school identity",
     );
 
     sandbox.ok(

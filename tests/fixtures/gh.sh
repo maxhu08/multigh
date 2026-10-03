@@ -8,8 +8,8 @@ case "$1 $2" in
         if [ -f "$TEST_MGH_ROOT/login-accounts-json" ]; then
             cp "$TEST_MGH_ROOT/login-accounts-json" "$TEST_MGH_ROOT/accounts-json"
         fi
-        if [ -f "$TEST_MGH_ROOT/login-accounts-conf" ]; then
-            cp "$TEST_MGH_ROOT/login-accounts-conf" "$XDG_CONFIG_HOME/multigh/accounts.conf"
+        if [ -f "$TEST_MGH_ROOT/login-identities-json" ]; then
+            cp "$TEST_MGH_ROOT/login-identities-json" "$XDG_CONFIG_HOME/multigh/identities.jsonc"
         fi
         ;;
     'config get')

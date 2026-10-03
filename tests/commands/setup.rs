@@ -89,12 +89,13 @@ fn identity_rules_are_idempotent_and_conflicts_preserve_configuration() {
 }
 
 #[test]
-fn setup_preserves_accounts_enables_modes_and_reports_private_identity_file_locations() {
+fn setup_preserves_identity_configuration_enables_modes_and_reports_private_identity_file_locations()
+ {
     use std::os::unix::fs::PermissionsExt;
 
     let sandbox = Sandbox::new();
 
-    let accounts = fs::read(sandbox.path("config/multigh/accounts.conf")).unwrap();
+    let configuration = fs::read(sandbox.path("config/multigh/identities.jsonc")).unwrap();
     let setup = sandbox.ok("mgh", &["setup"]);
 
     assert!(setup.contains("Accounts         "));
@@ -102,16 +103,22 @@ fn setup_preserves_accounts_enables_modes_and_reports_private_identity_file_loca
     assert!(
         setup.contains(
             sandbox
-                .path("config/multigh/accounts.conf")
+                .path("config/multigh/identities.jsonc")
                 .to_str()
                 .unwrap()
         )
     );
 
-    for alias in ["personal", "school"] {
-        let identity = sandbox.path(&format!("state/multigh/identities/git-{alias}.conf"));
+    for identity_name in ["personal", "school"] {
+        let identity = sandbox.path(&format!(
+            "state/multigh/identities/git-{identity_name}.conf"
+        ));
 
         assert!(setup.contains(identity.to_str().unwrap()));
+        assert!(setup.contains(&format!(
+            "Identity         {identity_name} · {}",
+            identity.display()
+        )));
         assert_eq!(
             fs::metadata(identity).unwrap().permissions().mode() & 0o777,
             0o600
@@ -143,20 +150,20 @@ fn setup_preserves_accounts_enables_modes_and_reports_private_identity_file_loca
 
     assert!(setup.contains("block commits and pushes") && setup.contains("starting a terminal"));
     assert_eq!(
-        accounts,
-        fs::read(sandbox.path("config/multigh/accounts.conf")).unwrap()
+        configuration,
+        fs::read(sandbox.path("config/multigh/identities.jsonc")).unwrap()
     );
     assert!(!sandbox.path("gh-calls").exists());
 }
 
 #[test]
-fn setup_refreshes_changed_accounts_and_removes_obsolete_include_rules() {
+fn setup_refreshes_changed_identities_and_removes_obsolete_include_rules() {
     let sandbox = Sandbox::new();
 
     sandbox.ok("mgh", &["setup"]);
     sandbox.write(
-        "config/multigh/accounts.conf",
-        "[personal]\nusername = alice\nname = New Name\nemail = new@example.com\n",
+        "config/multigh/identities.jsonc",
+        r#"{"personal": {"username": "alice", "commit": {"email": "new@example.com", "name": "New Name"}}}"#,
     );
     sandbox.ok("mgh", &["setup"]);
 

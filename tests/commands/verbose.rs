@@ -42,7 +42,7 @@ fn protections_and_verbose_toggle_independently() {
 fn verbose_preferences_do_not_require_config_or_enable_protections() {
     let sandbox = Sandbox::new();
 
-    std::fs::remove_file(sandbox.path("config/multigh/accounts.conf")).unwrap();
+    std::fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
 
     assert!(sandbox.ok("mgh", &["verbose"]).contains("OFF"));
     assert!(sandbox.ok("mgh", &["verbose", "on"]).contains("ON"));

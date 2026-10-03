@@ -46,7 +46,7 @@ fn worktree_hook_overrides_are_preserved_without_affecting_other_worktrees() {
     let text = String::from_utf8_lossy(&entry.stdout);
 
     assert!(text.contains("Existing hooks detected") && text.contains("custom hooks/pre-commit"));
-    assert!(text.contains("Account protections are active;"));
+    assert!(text.contains("Identity protections are active;"));
 
     let preserved = run(
         "git",

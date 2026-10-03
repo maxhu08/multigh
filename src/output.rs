@@ -43,9 +43,14 @@ pub fn section(title: &str) {
 }
 
 pub fn row(label: &str, value: &str, color: Color) {
+    nested_row(label, value, color, 2);
+}
+
+pub fn nested_row(label: &str, value: &str, color: Color, indent: usize) {
     println!(
-        "  {}{}",
-        paint(&format!("{label:<17}"), Color::Muted, false),
+        "{:indent$}{}{}",
+        "",
+        paint(&format!("{label:<16} "), Color::Muted, false),
         paint(value, color, false)
     );
 }
@@ -56,7 +61,7 @@ pub fn change(label: &str, before: &str, after: &str) {
     } else {
         println!(
             "  {}{} → {}",
-            paint(&format!("{label:<17}"), Color::Muted, false),
+            paint(&format!("{label:<16} "), Color::Muted, false),
             paint(
                 if before.is_empty() {
                     "not configured"

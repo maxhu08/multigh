@@ -13,14 +13,14 @@ fn check_is_silent_on_success_and_still_validates_when_protections_are_off() {
     sandbox.blocked("mgh", &["check"], "not allowed in this repository");
     sandbox.write("active", "alice\n");
     sandbox.ok("git", &["config", "user.name", "Wrong Name"]);
-    sandbox.blocked("mgh", &["check"], "AUTHOR identity");
+    sandbox.blocked("mgh", &["check"], "AUTHOR commit details");
 }
 
 #[test]
 fn check_rejects_missing_authorization_or_authentication_and_skips_non_repos() {
     let sandbox = Sandbox::new();
 
-    sandbox.blocked("mgh", &["check"], "No accounts are authorized");
+    sandbox.blocked("mgh", &["check"], "No identities are authorized");
     sandbox.protect();
     sandbox.write("fail-auth", "");
     sandbox.blocked("mgh", &["check"], "gh:");

@@ -37,55 +37,67 @@ pub fn run(path: PathBuf, state: Option<Toggle>) -> Result<()> {
             .and_then(|items| items.last())
             .map(String::as_str)
     };
+    let config = Config::load(path);
+    let selected_identity = config
+        .as_ref()
+        .ok()
+        .and_then(|config| {
+            config
+                .identities
+                .iter()
+                .find(|(_, identity)| identity.username.eq_ignore_ascii_case(&selected))
+        })
+        .map(|(identity_name, _)| identity_name.as_str())
+        .unwrap_or("not configured");
 
-    output::section("Identity");
-    output::row("Selected account", &selected, Color::Value);
+    output::section(&format!("Identity {selected_identity}"));
+    output::row("GitHub username", &selected, Color::Value);
     output::row(
         "Commit email",
         value("user.email").unwrap_or("not configured"),
         Color::Value,
     );
 
-    match Config::load(path) {
+    match config {
         Ok(config) => {
-            let aliases: BTreeSet<_> = values
+            let identity_names: BTreeSet<_> = values
                 .get("mgh.allowedaccount")
                 .cloned()
                 .unwrap_or_else(|| {
                     value("mgh.account")
                         .or(value("ghguard.account"))
-                        .map(|alias| vec![alias.to_owned()])
+                        .map(|identity_name| vec![identity_name.to_owned()])
                         .unwrap_or_default()
                 })
                 .into_iter()
-                .map(|alias| alias.to_ascii_lowercase())
+                .map(|identity_name| identity_name.to_ascii_lowercase())
                 .collect();
-            let mut selected_alias = None;
+            let mut allowed_identity = None;
 
-            for alias in &aliases {
-                match config.account(alias) {
-                    Ok(account) if account.username.eq_ignore_ascii_case(&selected) => {
-                        selected_alias = Some(alias)
+            for identity_name in &identity_names {
+                match config.identity(identity_name) {
+                    Ok(identity) if identity.username.eq_ignore_ascii_case(&selected) => {
+                        allowed_identity = Some(identity_name)
                     }
                     Err(error) => output::warning(&error.to_string()),
                     _ => {}
                 }
             }
 
-            if let Some(alias) = selected_alias {
-                let account = config.account(alias)?;
+            if let Some(identity_name) = allowed_identity {
+                let identity = config.identity(identity_name)?;
 
-                if value("user.name") != Some(account.name.as_str())
-                    || !account
-                        .emails
+                if value("user.name") != Some(identity.commit_name.as_str())
+                    || !identity
+                        .allowed_emails
                         .contains(&value("user.email").unwrap_or_default().to_ascii_lowercase())
                 {
-                    output::warning(&format!("Commit identity needs: mgh switch {alias}"));
+                    output::warning(&format!("Commit details need: mgh switch {identity_name}"));
                 }
-            } else if !aliases.is_empty() {
+            } else if !identity_names.is_empty() {
                 output::warning(&format!(
                     "This repository needs: mgh switch {}",
-                    aliases
+                    identity_names
                         .iter()
                         .map(String::as_str)
                         .collect::<Vec<_>>()

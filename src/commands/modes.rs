@@ -27,9 +27,9 @@ pub fn report(name: &str) -> Result<()> {
     println!(
         "  {}",
         if name == "protections" {
-            "Ask for allowed accounts in new repos; block commits and pushes from other accounts."
+            "Ask for allowed identities in new repos; block commits and pushes from other identities."
         } else {
-            "Show this repo's allowed accounts when entering it or starting a terminal in it."
+            "Show this repo's allowed identities when entering it or starting a terminal in it."
         }
     );
     println!();

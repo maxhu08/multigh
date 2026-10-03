@@ -1,14 +1,17 @@
 Getting started:
-    Run mgh new to sign in, save an account, run setup and select its identity.
-    Repeat to add accounts. You can also copy example/accounts.conf, fill in your
-    identities, sign in with gh auth login and run setup manually.
-    Setup enables protections and verbose. Load mgh init <shell> in shell config
-    for missing-account checklists and allowed-account reports on entry/startup.
+    Run mgh new to sign in, save an identity, run setup and select it. Repeat to
+    add identities. You can also copy examples/identities.jsonc, fill in your
+    identities, sign in with gh auth login and run setup manually. Setup enables
+    protections and verbose. Load mgh init <shell> in shell config for
+    missing-identity checklists and allowed-identity reports on entry/startup.
 
-    Account arguments use your section names, such as personal, not GitHub logins.
-    Names are case insensitive; Personal, PERSONAL and personal are equivalent.
+    An identity is a configured identity name such as personal, school or work,
+    mapped to a GitHub account and commit details. Commands use identity names,
+    not GitHub usernames. Names are case insensitive; Personal, PERSONAL and
+    personal are equivalent.
 
 Configuration:
-    XDG_CONFIG_HOME changes the default config directory. --config selects another
-    file. Identity files, shared hooks and preferences use XDG_STATE_HOME/multigh or
-    ~/.local/state/multigh. Repository allowed accounts live in local Git config.
+    XDG_CONFIG_HOME changes the default config directory. --config selects
+    another file. Identity files, shared hooks and preferences use
+    XDG_STATE_HOME/multigh or ~/.local/state/multigh. Repository allowed
+    identities live in local Git config.

@@ -23,7 +23,7 @@ pub fn repository(config: &Config, active: &str, before: Option<&[String; 2]>) -
     let allowed = policy::allowed(config)?;
 
     output::row(
-        "Allowed accounts",
+        "Allowed identities",
         &if allowed.is_empty() {
             "none selected".to_owned()
         } else {
@@ -76,11 +76,17 @@ pub fn repository(config: &Config, active: &str, before: Option<&[String; 2]>) -
     }
 
     match policy::active(config, &allowed, active) {
-        Ok(alias) => {
-            if let Err(error) = guard::identity(&alias, config.account(&alias)?) {
+        Ok(identity_name) => {
+            if let Err(error) =
+                guard::commit_details(&identity_name, config.identity(&identity_name)?)
+            {
                 output::warning(&error.to_string());
             } else {
-                output::row("Status", "✓ Account and identity match", Color::Changed);
+                output::row(
+                    "Status",
+                    "✓ Identity and commit details match",
+                    Color::Changed,
+                );
             }
         }
         Err(error) => output::warning(&error.to_string()),
@@ -98,49 +104,98 @@ pub fn run(path: PathBuf, full: bool) -> Result<()> {
         .unwrap_or("unavailable");
     let config = Config::load(path.clone());
 
-    output::section("Identities");
+    if let Ok(config) = &config {
+        output::section("Identities");
 
-    for account in &accounts {
-        let login = account["login"].as_str().unwrap_or("unknown");
-        let identity = config.as_ref().ok().and_then(|config| {
-            config
-                .accounts
-                .iter()
-                .find(|(_, identity)| identity.username.eq_ignore_ascii_case(login))
-        });
-        let email = identity
-            .map(|(_, identity)| identity.email.as_str())
-            .unwrap_or("not configured");
+        for (identity_name, identity) in &config.identities {
+            let account = accounts.iter().find(|account| {
+                account["login"]
+                    .as_str()
+                    .is_some_and(|login| identity.username.eq_ignore_ascii_case(login))
+            });
+            let marker = match account {
+                Some(account) if account["active"].as_bool() == Some(true) => {
+                    format!(" {}", output::paint("(Active)", Color::Changed, false))
+                }
+                None => format!(
+                    " {}",
+                    output::paint("(Not signed in)", Color::Warning, false)
+                ),
+                _ => String::new(),
+            };
 
-        println!(
-            "  {} {}{}",
-            output::paint(login, Color::Value, false),
-            output::paint(email, Color::Value, false),
-            if account["active"].as_bool() == Some(true) {
-                format!(" {}", output::paint("(Active)", Color::Changed, false))
-            } else {
-                String::new()
+            println!(
+                "  {}{marker}",
+                output::paint(identity_name, Color::Value, false),
+            );
+            output::nested_row("GitHub username", &identity.username, Color::Value, 4);
+            output::nested_row("Commit name", &identity.commit_name, Color::Value, 4);
+            output::nested_row("Commit email", &identity.commit_email, Color::Value, 4);
+
+            let location = git::identity_directory()?.join(format!("git-{identity_name}.conf"));
+
+            output::nested_row(
+                "Identity file",
+                &location.to_string_lossy(),
+                Color::Muted,
+                4,
+            );
+
+            if let Some(state) = account
+                .and_then(|account| account["state"].as_str())
+                .filter(|state| *state != "success")
+            {
+                output::warning(state);
             }
-        );
 
-        let location = match identity {
-            Some((alias, _)) => git::identity_directory()?
-                .join(format!("git-{alias}.conf"))
-                .to_string_lossy()
-                .into_owned(),
-            None => "Identity not configured".to_owned(),
-        };
-
-        println!("  {}", output::paint(&location, Color::Muted, false));
-
-        if let Some(state) = account["state"]
-            .as_str()
-            .filter(|state| *state != "success")
-        {
-            output::warning(state);
+            println!();
         }
+    }
 
-        println!();
+    let unconfigured: Vec<_> = accounts
+        .iter()
+        .filter(|account| {
+            !config.as_ref().is_ok_and(|config| {
+                config.identities.values().any(|identity| {
+                    account["login"]
+                        .as_str()
+                        .is_some_and(|login| identity.username.eq_ignore_ascii_case(login))
+                })
+            })
+        })
+        .collect();
+
+    if !unconfigured.is_empty() {
+        output::section(if config.is_ok() {
+            "Unconfigured GitHub accounts"
+        } else {
+            "GitHub accounts"
+        });
+
+        for account in unconfigured {
+            println!(
+                "  {}{}",
+                output::paint(
+                    account["login"].as_str().unwrap_or("unknown"),
+                    Color::Value,
+                    false
+                ),
+                if account["active"].as_bool() == Some(true) {
+                    format!(" {}", output::paint("(Active)", Color::Changed, false))
+                } else {
+                    String::new()
+                }
+            );
+
+            if let Some(state) = account["state"]
+                .as_str()
+                .filter(|state| *state != "success")
+            {
+                output::warning(state);
+            }
+
+            println!();
+        }
     }
 
     output::section("Accounts");

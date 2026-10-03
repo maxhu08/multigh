@@ -23,8 +23,9 @@ binary. Each behavior has a focused file; shared setup stays in `support/`.
 
 ```text
 tests/
-    accounts/
-        aliases.rs
+    identities/
+        jsonc.rs
+        names.rs
         paths.rs
         validation.rs
     commands/
@@ -62,7 +63,7 @@ tests/
         fish.rs
         zsh.rs
     fixtures/
-        accounts.ini
+        identities.jsonc
         gh.sh
     support/
         mod.rs
@@ -76,10 +77,10 @@ tests/
 | --- | --- |
 | Root help, version, invalid arguments and command help | `commands/cli.rs` |
 | Every completion shell and each supported init shell | `commands/completions.rs`, `commands/init.rs` |
-| cliclack identity form, colon-space prompt labels, displayed commit-name default and override, Esc/Ctrl+C cancellation, existing/browser login, failed or wrong-account authentication, private atomic saving, preserved config text, duplicates and invalid input, config locations, concurrent edits, setup/switch recovery and explicit repository authorization | `commands/new.rs` |
-| Switching, failed authentication changes, global/local identity and explicit authorization | `commands/switch.rs` |
-| Stacked status identities, filepaths, green active marker, purple two-line Accounts block, case-insensitive mapping, unconfigured accounts, full authentication output, read-only behavior and errors | `commands/status.rs` |
-| Identity welcome heading and toggle confirmations, local selection, mismatch warnings and unavailable configuration | `commands/welcome.rs` |
+| cliclack identity form, colon-space prompt labels, displayed commit-name default and override, Esc/Ctrl+C cancellation, existing/browser login, failed or wrong-GitHub-account authentication, private atomic saving, preserved JSONC values, comments and formatting, four-space new files, duplicates and invalid input, config locations, concurrent edits, setup/switch recovery and explicit repository authorization | `commands/new.rs` |
+| Switching, failed authentication changes, global/local commit details and explicit authorization | `commands/switch.rs` |
+| Configured identity names with labeled GitHub usernames, commit names, commit emails and filepaths, identities without a login, green active marker, purple two-line Accounts block, case-insensitive mapping, unmapped GitHub accounts, full authentication output, read-only behavior and errors | `commands/status.rs` |
+| Identity welcome heading and toggle confirmations, case-insensitive identity names on the heading line without a separator, GitHub usernames below, effective commit email, mismatch warnings and unavailable configuration | `commands/welcome.rs` |
 | Setup output order and indentation, Identity labels, home/XDG/global config filepaths, mode defaults, private identity files, identity rules, repeated setup, conflicts and symlinks | `commands/setup.rs` |
 | Generated config comments, updated/unchanged notices, changes to identity files, repeated commands, rule removal, partial failures and custom global config paths | `commands/git_config.rs` |
 | Protections on/off, allowed-list replacement, duplicates, invalid selections and missing configuration | `commands/protections.rs` |
@@ -88,9 +89,10 @@ tests/
 | Internal commit/push handlers, merge enforcement, native arguments/input and ordinary checkout | `commands/hook.rs` |
 | cliclack checklist selection, saved selections, scrolling, minimum selection, Esc/Ctrl+C cancellation and interactive cloning | `commands/picker.rs` |
 | Output spacing, change highlighting, errors, warnings, form colors/NO_COLOR, dumb terminals, redirected output and rejection of forms with redirected stderr | `commands/output.rs` |
-| Aliases, legacy pins, malformed fields, identity collisions, example configuration and path overrides | `accounts/` |
+| Identity names, legacy pins, malformed JSONC and field types, required/unknown/duplicate nested fields, line/block comments and trailing commas, identity collisions, example configuration and path overrides | `identities/` |
+| JSONC line/block comments, trailing commas, CRLF and indentation preservation, escaped commit names and protection enforcement | `identities/jsonc.rs` |
 | Actual author/committer overrides, allowed emails, authentication and invalid repository policy | `guards/commit.rs` |
-| Outgoing author/committer identities, collaborators, existing remote history, multiple refs and SHA-256 | `guards/history.rs`, `guards/push.rs` |
+| Outgoing author/committer names and emails, collaborators, existing remote history, multiple refs and SHA-256 | `guards/history.rs`, `guards/push.rs` |
 | Malformed hook input, encoding, deletion authorization and missing remote baselines | `guards/push_input.rs` |
 | Normal, bare, empty and no-checkout clones without authorization | `hooks/cloning.rs` |
 | Every installed hook launcher and native forwarding with protections off | `hooks/dispatch.rs` |
@@ -102,18 +104,18 @@ tests/
 | Noninteractive shells and preservation of Bash string/array prompt handlers | `shell/` |
 
 These are functional regression tests, not a claim of complete line or branch
-coverage. Assertions check observable outcomes: saved account policy, commit and
+coverage. Assertions check observable outcomes: saved identity policy, commit and
 push acceptance, unchanged settings on failure, forwarded input and terminal
 output. Failed pushes also verify that blocked references were not created.
 
 ## Isolation
 
 Every test owns a temporary directory, including its home, Git configuration,
-account config and state. Fixture usernames and emails are fictional. A simulated
-`gh` executable records calls and supplies account selection, simulated browser
+identity config and state. Fixture usernames and emails are fictional. A simulated
+`gh` executable records calls and supplies GitHub account selection, simulated browser
 login, live authentication and controlled failures. Git itself is real, with signing disabled in test config.
 Only local file transport is allowed; remotes are temporary local repositories.
-No real GitHub login, account configuration or user repository is changed.
+No real GitHub login, identity configuration or user repository is changed.
 
 Directory names include spaces and an apostrophe to exercise quoting in generated
 hook launchers and shell commands. Interactive tests use a native pseudo-terminal,

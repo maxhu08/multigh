@@ -37,12 +37,12 @@ pub fn run(cli: Cli) -> Result<()> {
 
     match cli.command {
         Command::New {
-            account,
+            identity,
             username,
             email,
             name,
             repo,
-        } => new::run(path, account, username, email, name, repo),
+        } => new::run(path, identity, username, email, name, repo),
         Command::Welcome { state } => welcome::run(path, state),
         Command::Protections { state, repo, allow } => modes::protections(path, state, repo, allow),
         Command::Verbose { state } => modes::verbose(state),
@@ -56,7 +56,7 @@ pub fn run(cli: Cli) -> Result<()> {
             let config = Config::load(path)?;
 
             match command {
-                Command::Switch { account, repo } => switch::run(&config, &account, repo),
+                Command::Switch { identity, repo } => switch::run(&config, &identity, repo),
 
                 Command::Setup => setup(&config),
 
@@ -89,7 +89,7 @@ fn setup(config: &Config) -> Result<()> {
         settings::set("protections", true)?;
         settings::set("verbose", true)?;
 
-        output::section("✓ Git account identity rules updated");
+        output::section("✓ Identity rules updated");
         output::row(
             "Accounts",
             &config.path.to_string_lossy(),
@@ -101,12 +101,12 @@ fn setup(config: &Config) -> Result<()> {
             output::Color::Muted,
         );
 
-        for alias in config.accounts.keys() {
+        for identity_name in config.identities.keys() {
+            let identity_file = identity_directory.join(format!("git-{identity_name}.conf"));
+
             output::row(
                 "Identity",
-                &identity_directory
-                    .join(format!("git-{alias}.conf"))
-                    .to_string_lossy(),
+                &format!("{identity_name} · {}", identity_file.display()),
                 output::Color::Changed,
             );
         }

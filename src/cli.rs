@@ -14,7 +14,7 @@ pub struct Cli {
     #[arg(
         long,
         global = true,
-        help = "Read account mappings from this file (default: ~/.config/multigh/accounts.conf)"
+        help = "Read identity mappings from this file (default: ~/.config/multigh/identities.jsonc)"
     )]
     pub config: Option<PathBuf>,
 
@@ -25,12 +25,12 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Command {
     #[command(
-        about = "Add a GitHub account, sign in and set up its identity",
+        about = "Add an identity and sign in to its GitHub account",
         after_help = include_str!("../docs/help/new.txt").trim()
     )]
     New {
-        #[arg(help = "New case-insensitive account alias; omit to be prompted")]
-        account: Option<String>,
+        #[arg(help = "New case-insensitive identity name; omit to be prompted")]
+        identity: Option<String>,
 
         #[arg(long, help = "GitHub username; omit to be prompted")]
         username: Option<String>,
@@ -43,22 +43,22 @@ pub enum Command {
 
         #[arg(
             long,
-            help = "Also authorize the new account for the current repository"
+            help = "Also authorize the new identity for the current repository"
         )]
         repo: bool,
     },
 
     #[command(
-        about = "Switch GitHub authentication and global Git identity",
+        about = "Select an identity and switch GitHub authentication and commit details",
         after_help = include_str!("../docs/help/switch.txt").trim()
     )]
     Switch {
         #[arg(
-            help = "Case-insensitive account section in accounts.conf, such as personal, school or work"
+            help = "Case-insensitive identity name in identities.jsonc, such as personal, school or work"
         )]
-        account: String,
+        identity: String,
 
-        #[arg(long, help = "Also authorize this account for the current repository")]
+        #[arg(long, help = "Also authorize this identity for the current repository")]
         repo: bool,
     },
 
@@ -90,21 +90,21 @@ pub enum Command {
     Setup,
 
     #[command(
-        about = "Toggle protections or choose this repository's allowed accounts",
+        about = "Toggle protections or choose this repository's allowed identities",
         after_help = include_str!("../docs/help/protections.txt").trim()
     )]
     Protections {
-        #[arg(help = "Enable or disable account enforcement; omit to show its status")]
+        #[arg(help = "Enable or disable identity enforcement; omit to show its status")]
         state: Option<Toggle>,
 
-        #[arg(long, conflicts_with_all = ["state", "allow"], help = "Open the account checklist for this repository")]
+        #[arg(long, conflicts_with_all = ["state", "allow"], help = "Open the identity checklist for this repository")]
         repo: bool,
 
-        #[arg(long, value_delimiter = ',', num_args = 1.., conflicts_with = "state", help = "Set allowed account aliases without a picker, e.g. personal,school,work")]
+        #[arg(long, value_delimiter = ',', num_args = 1.., conflicts_with = "state", help = "Set allowed identity names without a picker, e.g. personal,school,work")]
         allow: Vec<String>,
     },
 
-    #[command(about = "Toggle allowed-account output on directory entry and terminal startup", after_help = include_str!("../docs/help/verbose.txt").trim())]
+    #[command(about = "Toggle allowed-identity output on directory entry and terminal startup", after_help = include_str!("../docs/help/verbose.txt").trim())]
     Verbose {
         #[arg(help = "Enable or disable entry output; omit to show its status")]
         state: Option<Toggle>,
@@ -120,7 +120,7 @@ pub enum Command {
     Enter,
 
     #[command(
-        about = "Check authentication and commit identity in this repository",
+        about = "Check authentication and commit details against the selected identity in this repository",
         after_help = include_str!("../docs/help/check.txt").trim()
     )]
     Check,
@@ -148,7 +148,7 @@ pub enum Command {
 #[derive(Subcommand)]
 pub enum Hook {
     #[command(
-        about = "Check live authentication and actual author/committer identities before a commit"
+        about = "Check live authentication and actual author/committer names and emails before a commit"
     )]
     Commit,
 

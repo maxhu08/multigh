@@ -55,8 +55,8 @@ fn missing_changed_or_non_executable_hooks_do_not_report_active_protections() {
 
     assert!(entry.contains("Missing mgh hook: pre-commit"));
     assert!(entry.contains("mgh hook is not executable: pre-push"));
-    assert!(entry.contains("Account protections are not active."));
-    assert!(!entry.contains("Account protections are active;"));
+    assert!(entry.contains("Identity protections are not active."));
+    assert!(!entry.contains("Identity protections are active;"));
 
     let status = sandbox.ok("mgh", &["status"]);
 
@@ -68,7 +68,7 @@ fn missing_changed_or_non_executable_hooks_do_not_report_active_protections() {
     assert!(
         sandbox
             .ok("mgh", &["enter"])
-            .contains("Account protections are active;")
+            .contains("Identity protections are active;")
     );
 
     sandbox.commit();
@@ -77,7 +77,7 @@ fn missing_changed_or_non_executable_hooks_do_not_report_active_protections() {
     let entry = sandbox.ok("mgh", &["enter"]);
 
     assert!(entry.contains("mgh hook is unreadable or changed: pre-push"));
-    assert!(!entry.contains("Account protections are active;"));
+    assert!(!entry.contains("Identity protections are active;"));
 }
 
 #[test]
@@ -93,7 +93,7 @@ fn global_and_command_hook_overrides_are_reported_without_false_confirmation() {
 
     assert!(entry.contains("global hook path overrides mgh: custom"));
     assert!(entry.contains("custom/pre-commit"));
-    assert!(!entry.contains("Account protections are active;"));
+    assert!(!entry.contains("Identity protections are active;"));
     assert_eq!(
         sandbox
             .ok("git", &["config", "--global", "core.hooksPath"])
@@ -125,7 +125,7 @@ fn global_and_command_hook_overrides_are_reported_without_false_confirmation() {
     let entry = String::from_utf8_lossy(&output.stdout);
 
     assert!(entry.contains("command hook path overrides mgh: custom"));
-    assert!(!entry.contains("Account protections are active;"));
+    assert!(!entry.contains("Identity protections are active;"));
     assert!(
         !sandbox
             .run("git", &["config", "--local", "--get", "core.hooksPath"])
@@ -151,7 +151,7 @@ fn integration_rechecks_effective_settings_after_writing_git_config() {
     let entry = sandbox.ok("mgh", &["enter"]);
 
     assert!(entry.contains("local hook path overrides mgh: custom"));
-    assert!(!entry.contains("Account protections are active;"));
+    assert!(!entry.contains("Identity protections are active;"));
     assert_eq!(
         sandbox
             .ok("git", &["config", "--get", "core.hooksPath"])

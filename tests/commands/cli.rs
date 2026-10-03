@@ -13,6 +13,13 @@ fn root_help_lists_commands_without_examples_or_internal_handlers() {
         );
 
         assert!(text.contains("Usage:") && text.contains("Commands:"));
+        assert!(text.contains("An identity is a configured identity name"));
+        assert!(
+            text.split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .contains("Personal, PERSONAL and personal are equivalent")
+        );
 
         for command in [
             "new",
@@ -79,6 +86,20 @@ fn every_command_supports_detailed_help() {
 
     assert!(help.contains("personal,school,work"));
     assert!(!help.contains("personal,school\n"));
+
+    for command in ["new", "switch"] {
+        let help = sandbox.ok("mgh", &[command, "-h"]);
+
+        assert!(help.contains("IDENTITY"), "{help}");
+        assert!(
+            help.contains("case insensitive") || help.contains("case-insensitive"),
+            "{help}"
+        );
+        assert!(
+            !help.contains("ACCOUNT") && !help.contains("account alias"),
+            "{help}"
+        );
+    }
 }
 
 #[test]

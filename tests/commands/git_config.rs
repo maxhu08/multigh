@@ -1,4 +1,4 @@
-use crate::support::{ACCOUNTS, Sandbox};
+use crate::support::{IDENTITIES, Sandbox};
 use std::fs;
 
 #[test]
@@ -17,10 +17,11 @@ fn setup_labels_generated_settings_and_reports_only_actual_global_changes() {
     );
     assert_eq!(output.matches("Global Git config updated").count(), 1);
 
-    for alias in ["personal", "school"] {
-        let identity =
-            fs::read_to_string(sandbox.path(&format!("state/multigh/identities/git-{alias}.conf")))
-                .unwrap();
+    for identity_name in ["personal", "school"] {
+        let identity = fs::read_to_string(sandbox.path(&format!(
+            "state/multigh/identities/git-{identity_name}.conf"
+        )))
+        .unwrap();
 
         assert_eq!(
             identity
@@ -97,8 +98,8 @@ fn removing_obsolete_identity_rules_reports_a_change_without_leaving_comments() 
 
     sandbox.ok("mgh", &["setup"]);
     sandbox.write(
-        "config/multigh/accounts.conf",
-        "[personal]\nusername = alice\nname = Alice Example\nemail = alice@example.com\n",
+        "config/multigh/identities.jsonc",
+        r#"{"personal": {"username": "alice", "commit": {"email": "alice@example.com", "name": "Alice Example"}}}"#,
     );
 
     let output = sandbox.ok("mgh", &["setup"]);
@@ -196,8 +197,8 @@ fn setup_reports_unchanged_global_config_when_only_identity_files_change() {
     let before = fs::read(sandbox.path("gitconfig")).unwrap();
 
     sandbox.write(
-        "config/multigh/accounts.conf",
-        &ACCOUNTS.replace("alice@example.com", "new@example.com"),
+        "config/multigh/identities.jsonc",
+        &IDENTITIES.replace("alice@example.com", "new@example.com"),
     );
 
     let output = sandbox.ok("mgh", &["setup"]);

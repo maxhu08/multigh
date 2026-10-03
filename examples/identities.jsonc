@@ -1,0 +1,38 @@
+// Example configuration: choose any identity names and any number of identities.
+// Names are case insensitive; personal, Personal and PERSONAL are equivalent.
+// Schema: each identity requires username and a commit object.
+// commit.name is optional and defaults to username.
+// commit.email is required and is used for new commits; it is always accepted.
+// commit.additional_emails is an optional array of other accepted commit emails.
+{
+    "personal": {
+        "username": "alice",
+        "commit": {
+            "name": "Alice Example",
+            "email": "alice@example.com",
+            "additional_emails": [
+                "123+alice@users.noreply.github.com"
+            ]
+        }
+    },
+    "school": {
+        "username": "bob",
+        "commit": {
+            "name": "Bob Example",
+            "email": "bob@example.edu",
+            "additional_emails": [
+                "123+bob@users.noreply.github.com"
+            ]
+        }
+    },
+    "work": {
+        "username": "carol",
+        "commit": {
+            "name": "Carol Example",
+            "email": "carol@example.org",
+            "additional_emails": [
+                "123+carol@users.noreply.github.com"
+            ]
+        }
+    }
+}

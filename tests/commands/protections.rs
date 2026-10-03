@@ -1,10 +1,13 @@
-use crate::support::{ACCOUNTS, Sandbox};
+use crate::support::{IDENTITIES, Sandbox};
 
 #[test]
-fn multiple_allowed_accounts_work_and_switching_updates_the_local_identity() {
+fn multiple_allowed_identities_work_and_switching_updates_the_local_identity() {
     let sandbox = Sandbox::new();
 
-    sandbox.write("config/multigh/accounts.conf", &format!("{ACCOUNTS}\n[work]\nusername = carol\nname = Carol Example\nemail = carol@example.com\n"));
+    let mut identities: serde_json::Value = serde_json::from_str(IDENTITIES).unwrap();
+
+    identities["work"] = serde_json::json!({"username": "carol", "commit": {"name": "Carol Example", "email": "carol@example.com"}});
+    sandbox.write("config/multigh/identities.jsonc", &identities.to_string());
     sandbox.ok("mgh", &["setup"]);
     sandbox.ok(
         "mgh",
@@ -45,7 +48,7 @@ fn multiple_allowed_accounts_work_and_switching_updates_the_local_identity() {
     sandbox.blocked(
         "git",
         &["push", "origin", "main"],
-        "contains your carol identity",
+        "contains your work identity",
     );
 
     sandbox.write("active", "carol\n");
@@ -57,12 +60,12 @@ fn multiple_allowed_accounts_work_and_switching_updates_the_local_identity() {
 }
 
 #[test]
-fn protections_reports_status_and_replaces_allowed_accounts_without_duplicates() {
+fn protections_reports_status_and_replaces_allowed_identities_without_duplicates() {
     let sandbox = Sandbox::new();
 
     let initial = sandbox.ok("mgh", &["protections"]);
 
-    assert!(initial.contains("OFF") && initial.contains("No accounts selected"));
+    assert!(initial.contains("OFF") && initial.contains("No identities selected"));
 
     sandbox.protect();
     sandbox.ok(
@@ -119,7 +122,7 @@ fn invalid_authorization_does_not_change_the_existing_repo_policy() {
     sandbox.blocked(
         "mgh",
         &["protections", "--allow", "personal,unknown"],
-        "Unknown account",
+        "Unknown identity",
     );
 
     assert_eq!(
@@ -156,14 +159,14 @@ fn off_modes_work_with_missing_config_and_unconfigured_entry_still_blocks_commit
 
     let entry = sandbox.ok("mgh", &["enter"]);
 
-    assert!(entry.contains("No accounts selected; commits and pushes remain blocked."));
+    assert!(entry.contains("No identities selected; commits and pushes remain blocked."));
 
     sandbox.blocked(
         "git",
         &["commit", "--allow-empty", "-m", "Blocked"],
-        "No accounts are authorized",
+        "No identities are authorized",
     );
-    std::fs::remove_file(sandbox.path("config/multigh/accounts.conf")).unwrap();
+    std::fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
     sandbox.ok("mgh", &["protections", "off"]);
     sandbox.ok("mgh", &["verbose", "off"]);
 

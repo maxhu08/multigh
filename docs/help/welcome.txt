@@ -1,7 +1,8 @@
 Details:
-    With no argument, show Identity personal on one heading line without a
-    separator, followed by the GitHub username and effective commit email, when
-    welcome is enabled. Otherwise, print nothing. on and off save the preference
+    With no argument, show a purple Identity label and green identity name in
+    the second column without a separator, aligned with the GitHub username and
+    effective commit email below. Colors require a capable terminal and respect
+    NO_COLOR. When welcome is disabled, print nothing. on and off save the preference
     without switching identities.
 
     Add mgh welcome to your shell's startup greeting to display it

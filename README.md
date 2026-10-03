@@ -104,9 +104,9 @@ allowed identities, effective commit details and protections.
 
 To enable the optional shell welcome message, run `mgh welcome on` and add
 `mgh welcome` to your shell's greeting or interactive startup configuration. It
-shows the identity on the heading line, such as **Identity personal**, followed
-by the GitHub username and effective commit email. There is no separator or
-“Selected identity” label.
+shows a purple **Identity** label with the identity name in green in the second
+column, aligned with the GitHub username and effective commit email below it.
+There is no separator or “Selected identity” label.
 
 ## Adding an identity
 

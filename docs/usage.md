@@ -255,9 +255,10 @@ existing PROMPT_COMMAND. Zsh adds a chpwd handler. Each checks the starting repo
 as well. These handlers follow the saved protections and verbose toggles.
 Restart the shell or load its updated config to activate them.
 
-The optional welcome is separate. Its heading reads **Identity personal** on
-one line, without a separator. The GitHub username and effective commit email
-appear below it. It matches the locally selected GitHub account
+The optional welcome is separate. Its purple **Identity** label and green
+identity name share one line without a separator. The identity name occupies
+the second column, aligned with the GitHub username and effective commit email
+below it. It matches the locally selected GitHub account
 to the configured identity for fast startup; enforcement and status use live authentication. Toggle it with
 `mgh welcome on` or `mgh welcome off`. In Fish, add this to `fish_greeting`:
 

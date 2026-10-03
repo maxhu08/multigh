@@ -50,7 +50,11 @@ pub fn run(path: PathBuf, state: Option<Toggle>) -> Result<()> {
         .map(|(identity_name, _)| identity_name.as_str())
         .unwrap_or("not configured");
 
-    output::section(&format!("Identity {selected_identity}"));
+    output::section(&format!(
+        "{:<16} {}",
+        "Identity",
+        output::paint(selected_identity, Color::Changed, false)
+    ));
     output::row("GitHub username", &selected, Color::Value);
     output::row(
         "Commit email",

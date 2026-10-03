@@ -16,8 +16,8 @@ Details:
     in gh. Invalid input, cancelled prompts or failed login leave the identity
     configuration intact.
 
-    Create identities.jsonc if needed, or add to the existing JSONC object. New
-    files use four-space indentation. Save atomically and print its path. Run
+    Create identities.jsonc if needed, or add to the existing JSONC object.
+    Save atomically and print its path. Run
     setup to refresh identity rules and hooks and enable
     protections and verbose, then switch authentication and global commit
     defaults to the new identity's details. --repo explicitly adds it to this

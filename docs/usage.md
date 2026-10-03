@@ -84,7 +84,7 @@ GitHub account even if later verification fails.
 
 The identity configuration is created if absent. Existing identities, comments and
 formatting are preserved when adding the identity, then the file is saved
-atomically with private permissions. New files use four-space indentation. Its filepath is printed. If it is a
+atomically with private permissions. Its filepath is printed. If it is a
 symlink, use `--config` with the target instead. Edits made to the identity configuration
 during authentication are preserved and cause the command to stop.
 

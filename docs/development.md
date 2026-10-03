@@ -114,7 +114,7 @@ Primary and additional emails are merged into the runtime allowed-email set.
 
 `mgh new` validates the existing configuration and edits its concrete syntax tree
 using `jsonc-parser`'s `cst` feature. This preserves existing comments, field order
-and formatting while appending an identity. New files use four-space indentation.
+and formatting while appending an identity.
 The pending file is validated before authentication and saved atomically with
 private permissions only if the original file remains unchanged. Failed input or
 login leaves the original bytes unchanged.
@@ -122,7 +122,7 @@ login leaves the original bytes unchanged.
 Identity configuration guidance is in [Usage](usage.md#identities). The sample config
 contains brief user guidance; implementation explanations live here and in the
 [guard documentation](../README.md#how-the-guard-works). Cargo manages Cargo.lock,
-including its generated header. The root .editorconfig sets four-space indentation.
+including its generated header. The root .editorconfig defines formatting rules.
 
 ## Checks
 

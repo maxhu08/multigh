@@ -100,7 +100,7 @@ pub fn run(
                 "commit": {"name": name, "email": email}
             }
         });
-        let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
+        let formatter = serde_json::ser::PrettyFormatter::with_indent(b"  ");
         let mut serializer = serde_json::Serializer::with_formatter(&mut pending, formatter);
 
         document.serialize(&mut serializer)?;

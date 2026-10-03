@@ -125,7 +125,7 @@ mgh new work --username work-login --email work@example.com --name "Your Name" -
 ```
 
 Use a unique identity name for each GitHub account. Existing identities, comments
-and formatting are preserved when adding an identity. New files use four-space indentation.
+and formatting are preserved when adding an identity.
 All interactive forms use [cliclack](https://github.com/fadeevab/cliclack),
 including identity inputs and repository checklists. The **Add new
 identity** form uses labels ending in a colon and space, with input beneath them.
@@ -266,36 +266,36 @@ fictional usernames and commit details with your own:
 // commit.email is required and is used for new commits; it is always accepted.
 // commit.additional_emails is an optional array of other accepted commit emails.
 {
-    "personal": {
-        "username": "alice",
-        "commit": {
-            "name": "Alice Example",
-            "email": "alice@example.com",
-            "additional_emails": [
-                "123+alice@users.noreply.github.com"
-            ]
-        }
-    },
-    "school": {
-        "username": "bob",
-        "commit": {
-            "name": "Bob Example",
-            "email": "bob@example.edu",
-            "additional_emails": [
-                "123+bob@users.noreply.github.com"
-            ]
-        }
-    },
-    "work": {
-        "username": "carol",
-        "commit": {
-            "name": "Carol Example",
-            "email": "carol@example.org",
-            "additional_emails": [
-                "123+carol@users.noreply.github.com"
-            ]
-        }
+  "personal": {
+    "username": "alice",
+    "commit": {
+      "name": "Alice Example",
+      "email": "alice@example.com",
+      "additional_emails": [
+        "123+alice@users.noreply.github.com"
+      ]
     }
+  },
+  "school": {
+    "username": "bob",
+    "commit": {
+      "name": "Bob Example",
+      "email": "bob@example.edu",
+      "additional_emails": [
+        "123+bob@users.noreply.github.com"
+      ]
+    }
+  },
+  "work": {
+    "username": "carol",
+    "commit": {
+      "name": "Carol Example",
+      "email": "carol@example.org",
+      "additional_emails": [
+        "123+carol@users.noreply.github.com"
+      ]
+    }
+  }
 }
 ```
 

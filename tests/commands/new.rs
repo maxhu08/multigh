@@ -170,11 +170,11 @@ fn new_creates_a_first_identity_in_the_default_or_explicit_config_location() {
         });
 
         assert!(path.is_file());
-        assert!(
-            fs::read_to_string(&path)
-                .unwrap()
-                .contains("\n    \"work\": {")
-        );
+        let generated = fs::read_to_string(&path).unwrap();
+
+        assert!(generated.contains("\n  \"work\": {"));
+        assert!(generated.contains("\n    \"commit\": {"));
+        assert!(generated.contains("\n      \"email\": "));
         assert!(output.contains(if explicit {
             "custom/identities.jsonc"
         } else {

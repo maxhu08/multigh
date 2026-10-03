@@ -9,50 +9,68 @@ repository using `--path` as shown below.
 
 ## Getting started
 
-From this repository, with Rust installed:
+### 1. Install
+
+With Rust, Git and the GitHub CLI installed, run this from the repository directory:
 
 ```sh
 # Install the mgh command.
 cargo install --path . --locked --root "$HOME/.local"
-
-# Add an identity, sign in and configure Git; repeat for additional accounts.
-mgh new
 ```
 
 Add `~/.local/bin` to your shell's PATH before running `mgh` if needed.
-`mgh new` creates or extends your private `accounts.conf`, runs setup and selects
-the account. For manual configuration, copy [`example/accounts.conf`](example/accounts.conf)
-to `~/.config/multigh/accounts.conf`, replace the example identities with your own,
-sign in with `gh auth login`, then run `mgh setup`.
+
+### 2. Add your accounts
 
 ```sh
-# Generate identity files; enable protections and verbose output.
-mgh setup
-
-# Select an account from your accounts.conf sections.
-mgh switch personal
-
-# Review the active account and commit identity.
-mgh status
-
-# Enable the optional shell welcome message.
-mgh welcome on
+mgh new
 ```
 
-Load directory-entry integration from your interactive shell configuration:
+Follow the prompts for an account name, GitHub username, commit name and email.
+Use names such as `personal`, `school` or `work`, and sign in through the browser
+if prompted. Repeat `mgh new` for each account.
+
+**`mgh new` automatically runs `mgh setup`.** It saves your configuration,
+selects the account, and enables protections and verbose output.
+
+Already have an `accounts.conf`? Run `mgh setup` to use it, or follow
+[manual setup](#manual-setup) to create one yourself.
+
+### 3. Enable shell integration
+
+Add the line for your shell to its configuration file:
 
 ```fish
-# Fish: add to ~/.config/fish/config.fish, after mgh is on PATH.
+# Fish: ~/.config/fish/config.fish
 mgh init fish | source
 ```
 
 ```sh
-# Bash: add to ~/.bashrc.
+# Bash: ~/.bashrc
 eval "$(mgh init bash)"
+```
 
-# Zsh: add to ~/.zshrc.
+```sh
+# Zsh: ~/.zshrc
 eval "$(mgh init zsh)"
 ```
+
+Open a new terminal to activate it. This prompts for allowed accounts when you
+enter an unconfigured repository and shows which accounts are allowed there.
+
+### 4. Use it in a repository
+
+Enter your repository and choose its allowed accounts when prompted. Then:
+
+```sh
+# Switch to an allowed account, using the name you chose earlier.
+mgh switch personal
+
+# Check the selected identity and repository protections.
+mgh status
+```
+
+## Setup and status
 
 `mgh setup` turns **protections ON** and **verbose ON**, explains both, and prints
 the Accounts, global Git config and generated Identity filepaths. The global
@@ -75,6 +93,9 @@ the next line. The selected account has a green **(Active)** marker when color i
 available. **Accounts** is a purple heading with the account configuration
 filepath on the next line. Status also shows the current repo's identity and
 protections when inside a repo.
+
+To enable the optional shell welcome message, run `mgh welcome on` and add
+`mgh welcome` to your shell's greeting or interactive startup configuration.
 
 ## Adding an account
 
@@ -262,6 +283,27 @@ The default `email` is automatically allowed. Use emails belonging to the matchi
 GitHub account; accounts must have distinct usernames and email addresses.
 Store authentication credentials through `gh auth login`. After changing this
 file, run `mgh setup` to refresh the generated identity files.
+
+### Manual setup
+
+If you prefer to configure accounts yourself, copy the
+[example config](example/accounts.conf) to `~/.config/multigh/accounts.conf` and
+replace its example identities with your own. Then:
+
+```sh
+# Sign in to each configured account; repeat as needed.
+gh auth login
+
+# Generate identity rules and hooks and enable protections and verbose output.
+mgh setup
+
+# Select an account from your configuration.
+mgh switch personal
+```
+
+If your account file already exists, use it directly. Run `mgh setup` again after
+manually editing it. Both setup paths use the shell integration shown in
+[Getting started](#getting-started).
 
 ## Testing
 

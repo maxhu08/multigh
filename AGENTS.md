@@ -90,6 +90,9 @@ authentication, commit details and repository identity protections aligned.
 
 ## Checks
 
+Follow [the commit guide](docs/committing.md) for Conventional Commit messages and
+Cocogitto hook setup. Keep commit-message validation compatible with mgh's hooks.
+
 For code changes, run:
 
 ```sh

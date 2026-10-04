@@ -126,6 +126,10 @@ including its generated header. The root .editorconfig defines formatting rules.
 
 ## Checks
 
+Install the development commit-message hook and follow the format in the
+[commit guide](committing.md). Cocogitto validates new messages alongside mgh's
+identity protections.
+
 ```sh
 cargo fmt --check
 cargo test --all-targets

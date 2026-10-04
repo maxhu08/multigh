@@ -8,7 +8,8 @@ cargo test --all-targets
 cargo clippy --all-targets -- -D warnings
 ```
 
-The integration suite requires Unix, Git, Fish, Bash and Zsh on PATH. Git must
+The integration suite requires Unix, Git, Fish, Bash, Zsh and Cocogitto (`cog`) on
+PATH. Install Cocogitto 7 or newer using the [commit guide](committing.md). Git must
 be version 2.45 or newer for config comments and support conditional remote identity
 includes, worktree configuration and SHA-256 repositories. Shell tests run the
 actual shells; missing shells fail the suite rather than silently skipping coverage.
@@ -51,6 +52,7 @@ tests/
         push_input.rs
     hooks/
         cloning.rs
+        cocogitto.rs
         dispatch.rs
         health.rs
         husky.rs
@@ -95,6 +97,7 @@ tests/
 | Outgoing author/committer names and emails, collaborators, existing remote history, multiple refs and SHA-256 | `guards/history.rs`, `guards/push.rs` |
 | Malformed hook input, encoding, deletion authorization and missing remote baselines | `guards/push_input.rs` |
 | Normal, bare, empty and no-checkout clones without authorization | `hooks/cloning.rs` |
+| Cocogitto hook installation, conventional and merge messages, invalid-message rejection and coexistence with mgh identity protections | `hooks/cocogitto.rs` |
 | Every installed hook launcher and native forwarding with protections off | `hooks/dispatch.rs` |
 | Missing, changed and non-executable hooks, overrides, repair and recursion prevention | `hooks/health.rs` |
 | Preserved hooks, rejection, commit-message hooks, input, path resets, Husky and worktrees | `hooks/integration.rs`, `hooks/husky.rs`, `hooks/worktrees.rs` |

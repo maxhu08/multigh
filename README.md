@@ -358,3 +358,4 @@ prerequisites, coverage and focused test commands.
 
 - [Usage and configuration](docs/usage.md)
 - [Development and source layout](docs/development.md)
+- [Commit conventions and hook setup](docs/committing.md)

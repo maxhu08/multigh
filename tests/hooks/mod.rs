@@ -1,4 +1,5 @@
 mod cloning;
+mod cocogitto;
 mod dispatch;
 mod health;
 mod husky;

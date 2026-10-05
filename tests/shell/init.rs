@@ -290,3 +290,42 @@ fn git_information_flags_with_init_as_a_trailing_word_do_not_authorize_a_repo() 
     assert!(!output.contains("Which identities"), "{output}");
     assert!(!sandbox.path("home/.git").exists());
 }
+
+#[test]
+fn shell_init_enables_tab_completion_for_commands_and_flags_without_identity_config() {
+    let sandbox = Sandbox::new();
+    std::fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
+    sandbox.write(
+        "home/bashrc",
+        "PS1='completion-ready> '\neval \"$(mgh shell init bash)\"\n",
+    );
+    sandbox.write(
+        "home/.zshrc",
+        "PROMPT='completion-ready> '\neval \"$(mgh shell init zsh)\"\n",
+    );
+    let bashrc = sandbox.path("home/bashrc");
+
+    for (name, args) in [
+        ("fish", ["--no-config", "-i", "-C", "function fish_prompt; printf 'completion-ready> '; end; mgh shell init fish | source"].as_slice()),
+        ("bash", ["--noprofile", "--rcfile", bashrc.to_str().unwrap(), "-i"].as_slice()),
+        ("zsh", ["-di"].as_slice()),
+    ] {
+        let mut command = sandbox.command(name);
+        command.current_dir(sandbox.path("home"))
+            .env("ZDOTDIR", sandbox.path("home"))
+            .args(args);
+
+        let (status, output) = terminal(
+            &mut command,
+            &[("completion-ready> ", b"mgh sh\tco\tbash --he\t\rexit\r")],
+        );
+
+        assert!(status.success(), "{name}: {output}");
+        assert!(
+            output.contains("Usage: mgh shell completions"),
+            "{name}: {output}"
+        );
+        assert!(!sandbox.path("gh-calls").exists());
+        assert!(!sandbox.path("state/multigh").exists());
+    }
+}

@@ -1,6 +1,7 @@
 Details:
     Generate integration for interactive startup, directory changes and git init,
-    or tab completions. Load the integration from your shell configuration.
+    or standalone tab completions. Load the integration from your shell
+    configuration to enable command and option completions automatically.
     These commands do not require identity config or GitHub authentication.
 
 Examples:

@@ -38,6 +38,8 @@ eval "$(mgh shell init bash)"
 eval "$(mgh shell init zsh)"
 ```
 
+These lines also enable Tab completion for mgh commands and options.
+
 Inside a repository:
 
 ```sh

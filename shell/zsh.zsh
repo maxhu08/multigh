@@ -3,6 +3,12 @@ __mgh_enter() {
 }
 
 if [[ -o interactive ]]; then
+    if (( ! $+functions[compdef] )); then
+        autoload -Uz compinit
+        compinit -D
+    fi
+    eval "$(command mgh shell completions zsh)"
+
     if (( ! $+functions[git] && ! $+aliases[git] )); then
         function git {
             case " $* " in

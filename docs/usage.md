@@ -169,8 +169,10 @@ eval "$(mgh shell init zsh)"
 
 Shell integration checks identities at interactive startup and when entering a
 repository. It preserves existing prompt handlers and skips noninteractive shells.
-Restart or reload the shell configuration after installing. Generate completions
-with `mgh shell completions <shell>`.
+It also enables Tab completion for commands, options and fixed choices such as
+`on` and `off`. Restart or reload the shell configuration after installing.
+For standalone completion definitions or other supported shells, use
+`mgh shell completions <shell>`.
 
 Interactive `git init` runs Git first, then opens the allowed-identity checklist
 if protections are on and the initialized repo has no permissions. Space toggles

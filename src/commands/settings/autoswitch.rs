@@ -15,6 +15,7 @@ pub fn select(repository: &Repository, config: &Config) -> Result<bool> {
     });
     let name = if allowed.len() == 1 {
         let name = allowed.first().unwrap();
+        println!();
         output::row(
             "Autoswitch",
             &if current.is_some() {

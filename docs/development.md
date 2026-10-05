@@ -189,6 +189,12 @@ Noninteractive options remain supported.
 Full GitHub authentication reports capture stdout and stderr. Status and doctor
 only read; welcome uses selected local login without a live authentication request.
 
+Interactive shell initialization loads clap-generated command and option
+completions through `mgh shell completions`. Zsh initializes its completion system
+only when `compdef` is unavailable and does not write a completion dump. Completion
+loading is skipped in noninteractive shells and requires no identity configuration
+or GitHub authentication.
+
 Shell scripts preserve existing Git functions/aliases and prompt handlers. The
 hidden Git forwarder runs Git first, keeps its failures, and verifies initialization
 arguments before entering the target. A temporary command-scoped Git alias carries

@@ -1,7 +1,8 @@
 Details:
     Write completion definitions to stdout for Fish, Bash, Zsh, PowerShell or
-    Elvish. Save them in your shell's completion directory. No identity config
-    or GitHub login is required.
+    Elvish. Fish, Bash and Zsh load completions automatically through shell init.
+    For standalone use, save these definitions in your shell's completion
+    directory. No identity config or GitHub login is required.
 
 Examples:
     mgh shell completions fish

@@ -7,6 +7,8 @@ __mgh_enter() {
 
 case $- in
     *i*)
+        eval "$(command mgh shell completions bash)"
+
         if ! declare -F git >/dev/null && ! alias git >/dev/null 2>&1; then
             function git {
                 case " $* " in

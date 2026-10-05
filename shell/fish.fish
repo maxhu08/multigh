@@ -5,6 +5,8 @@ function __mgh_enter --on-variable PWD
 end
 
 if status is-interactive
+    command mgh shell completions fish | source
+
     if not functions -q git
         function git
             if contains -- init $argv

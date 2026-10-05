@@ -1,6 +1,7 @@
 Details:
-    Print Fish, Bash or Zsh integration. Load from your interactive shell config
-    after mgh is on PATH. Entry handles default protections, permission prompts,
+    Print Fish, Bash or Zsh integration, including command and option completions.
+    Load from your interactive shell config after mgh is on PATH. Entry handles
+    default protections, permission prompts,
     global autoswitch and verbose output. Successful interactive git init also
     prompts for permissions in its target repo when protections are on and no
     identities are allowed. Existing prompt handlers and custom git functions

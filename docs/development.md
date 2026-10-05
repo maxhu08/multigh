@@ -199,7 +199,7 @@ login leaves the original bytes unchanged.
 
 Identity configuration guidance is in [Usage](usage.md#global-identities). The sample config
 contains brief user guidance; implementation explanations live here and in the
-[guard documentation](../README.md#how-the-guard-works). Cargo manages Cargo.lock,
+[hook integration guide](usage.md#hook-integration). Cargo manages Cargo.lock,
 including its generated header. The root .editorconfig defines formatting rules.
 
 ## Checks

@@ -31,12 +31,65 @@ changing repo permissions. Clean affected repos with `repo allowed remove` or
 
 ## Identity configuration
 
-[The full schema and example](../README.md#identity-configuration) describe the
-JSON/JSONC config. The default is `~/.config/multigh/identities.jsonc`, changed by
+The default configuration is `~/.config/multigh/identities.jsonc`, changed by
 `XDG_CONFIG_HOME` or `--config`. Plain JSON works too, including `.json` files.
 Real comments and trailing commas are accepted; unknown fields and invalid values
 are errors. Existing comments and formatting are preserved during edits. Private
 configs are gitignored, while `examples/identities.jsonc` is tracked.
+
+Here is the full [example configuration](../examples/identities.jsonc):
+
+```jsonc
+// Example configuration: choose any identity names and any number of identities.
+// Names are case insensitive; personal, Personal and PERSONAL are equivalent.
+// Schema: each identity requires username and a commit object.
+// commit.name is optional and defaults to username.
+// commit.email is required and is used for new commits; it is always accepted.
+// commit.additional_emails is an optional array of other accepted commit emails.
+{
+  "personal": {
+    "username": "alice",
+    "commit": {
+      "name": "Alice Example",
+      "email": "alice@example.com",
+      "additional_emails": [
+        "123+alice@users.noreply.github.com"
+      ]
+    }
+  },
+  "school": {
+    "username": "bob",
+    "commit": {
+      "name": "Bob Example",
+      "email": "bob@example.edu",
+      "additional_emails": [
+        "123+bob@users.noreply.github.com"
+      ]
+    }
+  },
+  "work": {
+    "username": "carol",
+    "commit": {
+      "name": "Carol Example",
+      "email": "carol@example.org",
+      "additional_emails": [
+        "123+carol@users.noreply.github.com"
+      ]
+    }
+  }
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `username` | Required GitHub username. |
+| `commit.name` | Optional commit name; defaults to username. |
+| `commit.email` | Required email used for new commits. It is always accepted by protections. |
+| `commit.additional_emails` | Optional array of other accepted addresses, including older/noreply emails. |
+
+Unknown or duplicate fields, wrong types, invalid identity names, malformed
+emails and shared usernames/emails are rejected. Editing through mgh preserves
+comments, formatting and other identities.
 
 Generated identity files, hooks and global preference markers use
 `XDG_STATE_HOME/multigh`, defaulting to `~/.local/state/multigh`. Tokens remain in gh.
@@ -138,6 +191,32 @@ the shell wrapper. Existing custom `git` functions and aliases are preserved.
 For these cases, run `mgh repo allowed update` inside the initialized repository;
 shared commit/push hooks still enforce permissions.
 
+## Hook integration
+
+Setup installs shared hooks under `~/.local/state/multigh/hooks` by default and
+sets global `core.hooksPath`. Commit and merge hooks check live authentication
+and author/committer details. Push hooks also reject outgoing commits belonging
+to your other configured identities outside the allowed list; collaborator
+commits pass. Invalid config or empty permissions blocks protected operations.
+
+Original executable hooks are forwarded arguments, input and rejection results.
+Repo/worktree hook paths, including Husky's `.husky/_`, are preserved as
+`mgh.originalHooksPath` and integrated on entry while protections are on. Paths
+reset by other tools are repaired on re-entry or `repo protections on`. A custom
+global path is preserved and reported for manual integration. Readiness checks
+all managed launchers and the effective hook path before reporting protections.
+Verbose lists detected hooks individually, including skipped non-executable files.
+Cocogitto's repo commit-message hook continues running alongside identity checks.
+
+Git hooks are local safeguards: clients that bypass hooks can bypass protection.
+Normal clones can prompt after checkout; bare, empty, noninteractive or
+`--no-checkout` clones may need `mgh repo allowed update` later. Their protected
+commits and pushes remain blocked until configured.
+
+Git initialization prompts come from shell integration, since Git has no native
+initialization hook. See [shell integration](#global-settings-and-shell-integration)
+for supported calls and manual setup.
+
 ## Diagnostics and output
 
 `mgh status [--full]` is read-only and includes global identities and current repo
@@ -152,5 +231,5 @@ NO_COLOR, dumb terminals and redirected output suppress colors.
 
 Setup/switch report global Git changes once and annotate changed entries with the
 originating command. Matching values retain existing comments. See
-[How the guard works](../README.md#how-the-guard-works) for original hook forwarding,
+[Hook integration](#hook-integration) for original hook forwarding,
 Husky integration, readiness checks, clone behavior and local-hook limitations.

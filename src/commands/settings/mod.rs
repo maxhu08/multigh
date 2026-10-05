@@ -3,9 +3,9 @@ pub mod welcome;
 
 use crate::{
     cli::{SettingsCommand, Toggle},
-    output::{self, Color},
     repository::Repository,
     settings::{self, Preference},
+    utils::output::{self, Color},
 };
 use anyhow::Result;
 use std::path::PathBuf;

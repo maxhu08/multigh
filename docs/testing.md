@@ -20,7 +20,8 @@ verified by this suite.
 ## Unit tests
 
 Small tests beside shared modules cover policy decoding, pending identity saves
-and expected versus unexpected process failures through the actual helpers.
+and expected versus unexpected process failures through
+[`utils/process.rs`](../src/utils/process.rs).
 They complement the integration suite; they do not replace real Git, hooks or
 terminal tests. Run just these tests with `cargo test --bin mgh`.
 

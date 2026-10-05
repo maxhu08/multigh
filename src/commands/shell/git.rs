@@ -1,5 +1,7 @@
-use crate::terminal;
-use crate::{config, output, process};
+use crate::{
+    config,
+    utils::{output, process, terminal},
+};
 use anyhow::{Context, Result};
 use std::{path::PathBuf, process::Command};
 

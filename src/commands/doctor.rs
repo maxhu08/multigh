@@ -1,9 +1,11 @@
 use crate::{
     config::Config,
     git, github, hooks,
-    output::{self, Color},
-    process,
     repository::Repository,
+    utils::{
+        output::{self, Color},
+        process,
+    },
 };
 use anyhow::{Result, ensure};
 use std::path::PathBuf;

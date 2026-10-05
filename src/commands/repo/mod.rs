@@ -4,11 +4,10 @@ pub(super) mod selection;
 use crate::{
     cli::{RepoCommand, Toggle},
     config::Config,
-    git, github, guard, hooks,
-    output::{self, Color},
-    policy,
+    git, github, guard, hooks, policy,
     repository::Repository,
     settings,
+    utils::output::{self, Color},
 };
 use anyhow::Result;
 use std::path::PathBuf;

@@ -1,4 +1,4 @@
-use crate::terminal;
+use crate::utils::terminal;
 use anyhow::{Context, Result};
 
 pub(super) fn field(value: Option<String>, label: &str, default: Option<&str>) -> Result<String> {

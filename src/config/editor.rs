@@ -1,5 +1,5 @@
 use super::{Config, JSONC};
-use crate::storage;
+use crate::utils::storage;
 use anyhow::{Context, Result, ensure};
 use jsonc_parser::{
     cst::{CstObject, CstObjectProp, CstRootNode},

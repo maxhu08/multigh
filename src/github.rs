@@ -1,4 +1,7 @@
-use crate::{config::Identity, output, process};
+use crate::{
+    config::Identity,
+    utils::{output, process},
+};
 use anyhow::{Result, ensure};
 use serde::Deserialize;
 use std::{env, process::Output};
@@ -100,9 +103,9 @@ pub fn login(username: &str) -> Result<()> {
         return Ok(());
     }
 
-    crate::output::section(&format!("Sign in to GitHub as {username}"));
+    crate::utils::output::section(&format!("Sign in to GitHub as {username}"));
 
-    crate::process::interactive(
+    crate::utils::process::interactive(
         "gh",
         &["auth", "login", "--hostname", "github.com", "--web"],
     )?;

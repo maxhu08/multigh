@@ -1,5 +1,5 @@
 use super::{entries, global, run};
-use crate::{config::Config, storage};
+use crate::{config::Config, utils::storage};
 use anyhow::{Result, ensure};
 use std::{
     collections::BTreeMap,

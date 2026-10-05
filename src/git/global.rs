@@ -1,5 +1,5 @@
 use super::{optional_config, run};
-use crate::output;
+use crate::utils::output;
 use anyhow::{Context, Result};
 use std::{env, path::PathBuf};
 

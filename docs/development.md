@@ -37,15 +37,21 @@ registries or interchangeable backend traits.
 | [`hooks/readiness.rs`](../src/hooks/readiness.rs) | Shared launcher health and effective hook-path checks. |
 | [`hooks/preserved.rs`](../src/hooks/preserved.rs) | Existing-hook discovery and forwarding arguments, input and rejection. |
 | [`settings.rs`](../src/settings.rs) | Typed global preferences, setup completion and repository-local protections. |
-| [`storage.rs`](../src/storage.rs) | Home/XDG directories, private permissions and executable-file checks. |
-| [`process.rs`](../src/process.rs) | Captured/inherited external I/O, expected absence and shell quoting. |
-| [`terminal.rs`](../src/terminal.rs) | Terminal availability for interactive forms. |
-| [`output.rs`](../src/output.rs) | User-facing reports, warnings and errors. |
+| [`utils/storage.rs`](../src/utils/storage.rs) | Home/XDG directories, private permissions and executable-file checks. |
+| [`utils/process.rs`](../src/utils/process.rs) | Captured/inherited external I/O, expected absence and shell quoting. |
+| [`utils/terminal.rs`](../src/utils/terminal.rs) | Terminal availability for interactive forms. |
+| [`utils/output.rs`](../src/utils/output.rs) | User-facing reports, warnings and errors. |
 | [`shell/`](../shell/) | Fish, Bash and Zsh scripts embedded by `commands/shell`. |
 
 `commands/identity/form.rs` shares identity text inputs. Permission forms and
 reports belong to `commands/repo/selection.rs`; autoswitch's picker belongs to
 `commands/settings/autoswitch.rs`. Policy helpers have no terminal dependency.
+
+`src/utils/` groups general helpers used across commands and domain modules.
+Its `mod.rs` declares the modules; callers import the specific helper module, such
+as `crate::utils::process`. Keep Git, GitHub, identity, policy and hook behavior in
+their existing domain modules. Helpers needed by only one command stay with that
+command. Add a subdirectory under utils only when related utilities need one.
 
 ## Main call paths
 
@@ -181,9 +187,9 @@ selection was handled, including when the sole identity was already active;
 `OutgoingCommit` before enforcing rules. Named OID, author and committer fields
 keep parsing details out of the enforcement loop. Both parsers stay in that file.
 
-Interactive forms use cliclack. `terminal::interactive` requires stdin, stdout and
-stderr terminals. Forms preserve existing defaults and selections and cancel
-without saving. Permission checklists require at least one allowed identity.
+Interactive forms use cliclack. `utils::terminal::interactive` requires stdin,
+stdout and stderr terminals. Forms preserve existing defaults and selections and
+cancel without saving. Permission checklists require at least one allowed identity.
 Noninteractive options remain supported.
 
 Full GitHub authentication reports capture stdout and stderr. Status and doctor
@@ -207,8 +213,10 @@ calls pass through. Fish restores terminal input when initialization is piped in
 1. Define the observable behavior and scope: global identity, global preference,
    repository policy, hook enforcement or shell integration.
 2. Add arguments in `cli.rs` and route them through the owning command group.
-3. Keep the command flow and one-caller helpers together. Reuse the existing storage
-   or policy owner; extract shared behavior when multiple callers need it.
+3. Check `src/utils/` and the owning domain modules before writing helper logic.
+   Reuse or extend existing helpers instead of duplicating them. Keep the command
+   flow and one-caller helpers together; put new general utilities in `src/utils/`
+   when multiple callers need them.
 4. For identity fields, update parsing/validation and the shared editor. For policy
    compatibility, update the decoder and keep migration separate. Preserve existing
    permission and scope guarantees.

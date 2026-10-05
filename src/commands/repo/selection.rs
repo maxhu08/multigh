@@ -1,8 +1,11 @@
 use crate::repository::Repository;
 use crate::{
     config::Config,
-    output::{self, Color},
-    policy, terminal,
+    policy,
+    utils::{
+        output::{self, Color},
+        terminal,
+    },
 };
 use anyhow::{Result, ensure};
 

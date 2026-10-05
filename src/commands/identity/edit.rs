@@ -4,7 +4,8 @@ use crate::{
         Config,
         editor::{Editor, PendingUpdate},
     },
-    git, github, output, terminal,
+    git, github,
+    utils::{output, terminal},
 };
 use anyhow::{Context, Result, ensure};
 use std::path::PathBuf;

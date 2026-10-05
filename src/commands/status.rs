@@ -1,10 +1,9 @@
 use crate::{
     config::{CommitDetails, Config},
-    git, github, guard, hooks,
-    output::{self, Color},
-    policy,
+    git, github, guard, hooks, policy,
     repository::Repository,
     settings,
+    utils::output::{self, Color},
 };
 use anyhow::{Result, ensure};
 use std::path::PathBuf;

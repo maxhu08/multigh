@@ -1,8 +1,8 @@
 use crate::{
     config::{Config, editor::Editor},
-    git, github, output, process,
+    git, github,
     repository::Repository,
-    terminal,
+    utils::{output, process, terminal},
 };
 use anyhow::{Context, Result, ensure};
 use std::path::PathBuf;

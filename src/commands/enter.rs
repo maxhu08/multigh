@@ -1,4 +1,10 @@
-use crate::{config::Config, hooks, output, policy, repository::Repository, settings, terminal};
+use crate::{
+    config::Config,
+    hooks, policy,
+    repository::Repository,
+    settings,
+    utils::{output, terminal},
+};
 use anyhow::Result;
 use std::path::PathBuf;
 

@@ -5,15 +5,13 @@ mod git;
 mod github;
 mod guard;
 mod hooks;
-mod output;
 mod policy;
-mod process;
 mod repository;
 mod settings;
-mod storage;
-mod terminal;
+mod utils;
 
 use clap::Parser;
+use utils::output;
 
 fn main() {
     if let Err(error) = commands::run(cli::Cli::parse()) {

@@ -1,5 +1,5 @@
 use super::{MARKER, NAMES, directory};
-use crate::{repository::Repository, storage};
+use crate::{repository::Repository, utils::storage};
 use anyhow::Result;
 use std::{fs, path::PathBuf};
 

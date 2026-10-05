@@ -1,10 +1,12 @@
 use crate::{
     config::Config,
-    git, hooks,
-    output::{self, Color},
-    policy,
+    git, hooks, policy,
     repository::Repository,
-    settings, terminal,
+    settings,
+    utils::{
+        output::{self, Color},
+        terminal,
+    },
 };
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};

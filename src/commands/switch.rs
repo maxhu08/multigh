@@ -1,7 +1,8 @@
 use crate::{
     config::{CommitDetails, Config, Identity},
-    git, github, output, policy,
+    git, github, policy,
     repository::Repository,
+    utils::output,
 };
 use anyhow::Result;
 

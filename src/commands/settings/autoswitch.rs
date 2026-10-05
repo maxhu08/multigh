@@ -1,5 +1,9 @@
-use crate::terminal;
-use crate::{config::Config, git, github, output, policy, repository::Repository};
+use crate::{
+    config::Config,
+    git, github, policy,
+    repository::Repository,
+    utils::{output, terminal},
+};
 use anyhow::{Result, ensure};
 
 pub fn select(repository: &Repository, config: &Config) -> Result<bool> {

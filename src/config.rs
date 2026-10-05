@@ -120,7 +120,7 @@ pub const JSONC: ParseOptions = ParseOptions {
 pub fn path(explicit: Option<PathBuf>) -> Result<PathBuf> {
     let path = match explicit {
         Some(path) => path,
-        None => crate::storage::directory("XDG_CONFIG_HOME", ".config")?
+        None => crate::utils::storage::directory("XDG_CONFIG_HOME", ".config")?
             .join("multigh/identities.jsonc"),
     };
 

@@ -1,8 +1,7 @@
 use crate::{
     config::Config,
-    git, github,
-    output::{self, Color},
-    policy, settings,
+    git, github, policy, settings,
+    utils::output::{self, Color},
 };
 use anyhow::Result;
 use std::path::PathBuf;

@@ -61,7 +61,11 @@ authentication, commit details and repository identity protections aligned.
   disabled locally; setup must preserve local exceptions and saved preferences.
 - Use clap for parsing, help and completions; cliclack for all interactive forms,
   including text inputs and identity checklists.
-- Use the shared Git, process and output helpers instead of duplicating them.
+- Before implementing a feature, check `src/utils/` and the owning domain modules
+  for existing helpers. Reuse or extend them instead of reimplementing logic.
+- Keep general process, storage, terminal and output helpers in `src/utils/`.
+  Keep domain logic in its owning module and command-specific helpers with the
+  command.
 - An identity is a configured name such as personal, school or work, mapped to a
   GitHub account and commit details. Identity names are case insensitive. Keep
   identity names distinct from GitHub usernames and commit names in code and output.

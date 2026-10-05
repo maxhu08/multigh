@@ -9,7 +9,7 @@ fn detected_hooks_are_listed_individually_with_inactive_hooks_marked() {
     sandbox.write("repo/.git/hooks/commit-msg", "#!/bin/sh\nexit 1\n");
     sandbox.protect();
 
-    let entry = sandbox.ok("mgh", &["enter"]);
+    let entry = sandbox.ok("mgh", &["internal", "enter"]);
 
     for name in ["pre-commit", "pre-push", "commit-msg"] {
         assert!(

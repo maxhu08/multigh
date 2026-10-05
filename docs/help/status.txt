@@ -1,21 +1,13 @@
 Details:
-    List configured identities such as personal, school and work. Each entry
-    shows its case-insensitive identity name, then labeled GitHub username,
-    commit name, commit email and generated identity filepath rows indented
-    beneath the name, with a blank line between identities. The identity
-    matching the live active GitHub account has (Active) in green. Identities without a GitHub CLI login show (Not signed
-    in). Unmapped logins appear separately under Unconfigured GitHub accounts.
-    If configuration cannot be loaded, show GitHub accounts and report the
-    error. Accounts is a purple heading with the identities.jsonc filepath
-    underneath. Omit global commit defaults.
-
-    In a repo, show allowed identities, effective commit details, hook
-    enforcement status, and authentication or identity mismatches. Hook-path
-    overrides and missing, non-executable or changed managed hooks are reported
-    individually.
-
-    This is a read-only report using live gh authentication information. --full
-    adds gh auth status output for troubleshooting.
+    Repository details include the local Git config filepath, active identity,
+    allowed identities, commit details, protections and global autoswitch state.
+    Read global identities and live GitHub authentication, then show this repo's
+    allowed identities, effective commit details and hook readiness when inside
+    Git. Status does not mutate configuration. --full includes gh auth status,
+    with every report line indented and both output streams preserved. Terminal
+    colors and bold text are retained; NO_COLOR, CLICOLOR=0, dumb terminals and
+    redirected output keep the full report plain.
+    Repo-only status is available as mgh repo status. Use doctor for diagnostics.
 
 Examples:
     mgh status

@@ -53,6 +53,12 @@ authentication, commit details and repository identity protections aligned.
 ## Project Conventions
 
 - Keep argument definitions in `src/cli.rs` and command behavior in `src/commands/`.
+- Mirror public command groups in command modules. Keep one dispatcher for the
+  current CLI; remove replaced commands and implementations instead of retaining
+  aliases. Keep shell and hook entry points under the hidden internal group.
+- Global identity and preference commands must not expand repository permissions.
+  Every repo command requires a repository. Protections default on unless explicitly
+  disabled locally; setup must preserve local exceptions and saved preferences.
 - Use clap for parsing, help and completions; cliclack for all interactive forms,
   including text inputs and identity checklists.
 - Use the shared Git, process and output helpers instead of duplicating them.

@@ -2,54 +2,11 @@ use crate::support::Sandbox;
 use std::fs;
 
 #[test]
-fn legacy_commit_and_push_handlers_enforce_authentication_and_allow_off_without_config() {
-    let sandbox = Sandbox::new();
-
-    sandbox.protect();
-    sandbox.commit();
-    sandbox.ok("mgh", &["hook", "commit"]);
-
-    let head = sandbox.ok("git", &["rev-parse", "HEAD"]);
-    let updates = format!(
-        "refs/heads/main {} refs/heads/main {}\n",
-        head.trim(),
-        "0".repeat(40)
-    );
-    let output = sandbox.input(
-        "mgh",
-        &["hook", "push", "origin", "../remote"],
-        updates.as_bytes(),
-    );
-
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    sandbox.write("active", "bob\n");
-    sandbox.blocked("mgh", &["hook", "commit"], "GitHub is using bob");
-
-    let output = sandbox.input(
-        "mgh",
-        &["hook", "push", "origin", "../remote"],
-        updates.as_bytes(),
-    );
-
-    assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("GitHub is using bob"));
-
-    sandbox.ok("mgh", &["protections", "off"]);
-    fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
-    sandbox.ok("mgh", &["hook", "commit"]);
-    sandbox.ok("mgh", &["hook", "push", "origin", "../remote"]);
-}
-
-#[test]
 fn dispatcher_rejects_unknown_hooks_and_forwards_native_arguments_and_binary_input_once() {
     let sandbox = Sandbox::new();
 
-    sandbox.blocked("mgh", &["hook", "run", "unknown"], "Unknown Git hook");
+    sandbox.ok("mgh", &["repo", "protections", "off"]);
+    sandbox.blocked("mgh", &["internal", "hook", "unknown"], "Unknown Git hook");
 
     for name in [
         "pre-push",
@@ -65,7 +22,7 @@ fn dispatcher_rejects_unknown_hooks_and_forwards_native_arguments_and_binary_inp
 
         let output = sandbox.input(
             "mgh",
-            &["hook", "run", name, "--option", "two words", ""],
+            &["internal", "hook", name, "--option", "two words", ""],
             b"first\n\xffsecond\n",
         );
 
@@ -99,12 +56,12 @@ fn merge_commit_checks_run_before_existing_hooks_and_failed_authentication_fails
         "#!/bin/sh\nprintf called > \"$TEST_MGH_ROOT/merged\"\n",
     );
     sandbox.write("fail-auth", "");
-    sandbox.blocked("mgh", &["hook", "run", "pre-merge-commit"], "gh:");
+    sandbox.blocked("mgh", &["internal", "hook", "pre-merge-commit"], "gh:");
 
     assert!(!sandbox.path("merged").exists());
 
     fs::remove_file(sandbox.path("fail-auth")).unwrap();
-    sandbox.ok("mgh", &["hook", "run", "pre-merge-commit"]);
+    sandbox.ok("mgh", &["internal", "hook", "pre-merge-commit"]);
 
     assert_eq!(
         fs::read_to_string(sandbox.path("merged")).unwrap(),
@@ -125,8 +82,8 @@ fn ordinary_checkout_skips_initial_clone_selection_and_still_forwards_existing_h
     let output = sandbox.ok(
         "mgh",
         &[
+            "internal",
             "hook",
-            "run",
             "post-checkout",
             &"a".repeat(40),
             &"b".repeat(40),
@@ -141,7 +98,7 @@ fn ordinary_checkout_skips_initial_clone_selection_and_still_forwards_existing_h
     );
     assert!(
         !sandbox
-            .run("git", &["config", "--get-all", "mgh.allowedAccount"])
+            .run("git", &["config", "--get-all", "mgh.allowed-identity"])
             .status
             .success()
     );

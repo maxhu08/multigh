@@ -24,8 +24,8 @@ fn comments_and_trailing_commas_work_with_identity_protections_without_rewriting
 
     sandbox.write("config/multigh/identities.jsonc", &configuration);
     sandbox.ok("mgh", &["setup"]);
-    sandbox.ok("mgh", &["protections", "--allow", "PERSONAL"]);
-    sandbox.ok("mgh", &["check"]);
+    sandbox.allow("PERSONAL");
+    sandbox.ok("mgh", &["repo", "check"]);
     sandbox.commit();
     sandbox.ok(
         "git",
@@ -61,6 +61,7 @@ fn adding_an_identity_preserves_crlf_comments_indentation_and_escaped_commit_nam
     sandbox.ok(
         "mgh",
         &[
+            "identity",
             "new",
             "WORK",
             "--username",

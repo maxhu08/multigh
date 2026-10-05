@@ -25,7 +25,10 @@ fn switch_updates_authentication_and_global_identity_without_authorizing_the_rep
     );
     assert!(
         !sandbox
-            .run("git", &["config", "--local", "--get", "mgh.allowedAccount"])
+            .run(
+                "git",
+                &["config", "--local", "--get", "mgh.allowed-identity"]
+            )
             .status
             .success()
     );
@@ -49,7 +52,7 @@ fn switch_updates_authentication_and_global_identity_without_authorizing_the_rep
 }
 
 #[test]
-fn switching_authorizes_only_when_requested_and_updates_allowed_local_identity() {
+fn switching_preserves_permissions_and_updates_allowed_local_identity() {
     let sandbox = Sandbox::new();
 
     sandbox.protect();
@@ -62,13 +65,14 @@ fn switching_authorizes_only_when_requested_and_updates_allowed_local_identity()
         "alice@example.com"
     );
 
-    sandbox.ok("mgh", &["switch", "school", "--repo"]);
+    sandbox.ok("mgh", &["repo", "allowed", "add", "school"]);
+    sandbox.ok("mgh", &["switch", "school"]);
 
     assert_eq!(
         sandbox
             .ok(
                 "git",
-                &["config", "--local", "--get-all", "mgh.allowedAccount"]
+                &["config", "--local", "--get-all", "mgh.allowed-identity"]
             )
             .trim(),
         "personal\nschool"

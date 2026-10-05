@@ -1,27 +1,13 @@
 use crate::{
-    cli::Toggle,
     config::Config,
     git, github,
     output::{self, Color},
-    settings,
+    policy, settings,
 };
 use anyhow::Result;
 use std::{collections::BTreeSet, path::PathBuf};
 
-pub fn run(path: PathBuf, state: Option<Toggle>) -> Result<()> {
-    if let Some(state) = state {
-        let enabled = matches!(state, Toggle::On);
-
-        settings::set("welcome", enabled)?;
-        output::section(if enabled {
-            "✓ Identity welcome enabled"
-        } else {
-            "✓ Identity welcome disabled"
-        });
-        println!();
-        return Ok(());
-    }
-
+pub fn run(path: PathBuf) -> Result<()> {
     if !settings::enabled("welcome")? {
         return Ok(());
     }
@@ -29,7 +15,7 @@ pub fn run(path: PathBuf, state: Option<Toggle>) -> Result<()> {
     let selected = github::selected()?.unwrap_or_else(|| "unavailable".into());
     let values = git::entries(
         None,
-        "^(user\\.(name|email)|mgh\\.(account|allowedaccount)|ghguard\\.account)$",
+        "^(user\\.(name|email)|mgh\\.(current-identity|allowed-identity|account|allowedaccount)|ghguard\\.account)$",
     )?;
     let value = |key: &str| {
         values
@@ -50,11 +36,7 @@ pub fn run(path: PathBuf, state: Option<Toggle>) -> Result<()> {
         .map(|(identity_name, _)| identity_name.as_str())
         .unwrap_or("not configured");
 
-    output::section(&format!(
-        "{:<16} {}",
-        "Identity",
-        output::paint(selected_identity, Color::Changed, false)
-    ));
+    output::heading("Identity", selected_identity, Color::Changed);
     output::row("GitHub username", &selected, Color::Value);
     output::row(
         "Commit email",
@@ -65,15 +47,18 @@ pub fn run(path: PathBuf, state: Option<Toggle>) -> Result<()> {
     match config {
         Ok(config) => {
             let identity_names: BTreeSet<_> = values
-                .get("mgh.allowedaccount")
+                .get(policy::ALLOWED)
+                .or_else(|| values.get("mgh.allowedaccount"))
                 .cloned()
                 .unwrap_or_else(|| {
-                    value("mgh.account")
+                    value(policy::CURRENT)
+                        .or(value("mgh.account"))
                         .or(value("ghguard.account"))
                         .map(|identity_name| vec![identity_name.to_owned()])
                         .unwrap_or_default()
                 })
                 .into_iter()
+                .filter(|name| !name.is_empty())
                 .map(|identity_name| identity_name.to_ascii_lowercase())
                 .collect();
             let mut allowed_identity = None;

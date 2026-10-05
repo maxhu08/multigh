@@ -3,15 +3,20 @@ use anyhow::Result;
 use std::path::PathBuf;
 
 pub fn run(path: PathBuf) -> Result<()> {
-    let protections = settings::enabled("protections")?;
+    if !policy::repository()? {
+        return Ok(());
+    }
+    let protections = settings::protections()?;
     let verbose = settings::enabled("verbose")?;
+    let autoswitch = settings::enabled("autoswitch")?;
 
-    if (!protections && !verbose) || !policy::repository()? {
+    if !protections && !verbose && !autoswitch {
         return Ok(());
     }
 
     let config = Config::load(path)?;
     let allowed = policy::allowed(&config)?;
+    policy::migrate()?;
     let mut chosen = false;
 
     let protected = protections && (hooks::installed()? || hooks::integrate()?);
@@ -36,16 +41,28 @@ pub fn run(path: PathBuf) -> Result<()> {
         if policy::interactive() {
             match policy::choose(&config) {
                 Ok(()) => chosen = true,
-                Err(error) => output::warning(&format!("{error}\n\n  {pending}")),
+                Err(error) => output::warning(&format!("{error}\n\n{pending}")),
             }
         } else {
             output::warning(&format!(
-                "{pending}\nEnter this repository in an interactive terminal, or run mgh protections --allow <identities>."
+                "{pending}\nEnter this repository in an interactive terminal, or run mgh repo allowed add <identity>."
             ));
         }
     }
 
-    if verbose {
+    let switched = if autoswitch {
+        match super::settings::autoswitch::run(&config) {
+            Ok(switched) => switched,
+            Err(error) => {
+                output::warning(&format!("{error:#}"));
+                false
+            }
+        }
+    } else {
+        false
+    };
+
+    if verbose && !switched {
         let detected = hooks::detected()?;
 
         if !detected.is_empty() {

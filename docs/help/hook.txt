@@ -1,8 +1,0 @@
-Details:
-    Shared Git hooks invoke this internal dispatcher automatically. Commit
-    checks validate authentication and actual author and committer names and
-    emails; push checks also read updates from stdin and validate outgoing
-    commits. Original repo hooks are forwarded.
-
-    Use mgh setup or mgh protections on to install the shared hooks. Use mgh
-    check for a manual identity check.

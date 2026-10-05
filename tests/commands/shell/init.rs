@@ -8,9 +8,9 @@ fn init_emits_each_shell_handler_without_needing_identities() {
     fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
 
     for shell in ["fish", "bash", "zsh"] {
-        let script = sandbox.ok("mgh", &["init", shell]);
+        let script = sandbox.ok("mgh", &["shell", "init", shell]);
 
-        assert!(script.contains("__mgh_enter") && script.contains("command mgh enter"));
+        assert!(script.contains("__mgh_enter") && script.contains("command mgh internal enter"));
 
         let path = sandbox.path(&format!("init.{shell}"));
 

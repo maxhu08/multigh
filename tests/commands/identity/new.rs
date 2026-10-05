@@ -3,6 +3,7 @@ use std::{fs, os::unix::fs::PermissionsExt};
 
 const LOGIN: &str = r#"[{"login":"carol","active":true,"state":"success"}]"#;
 const ARGS: &[&str] = &[
+    "identity",
     "new",
     "WORK",
     "--username",
@@ -53,7 +54,10 @@ fn new_authenticates_preserves_existing_data_and_comments_and_sets_up_the_identi
         1
     );
     assert!(calls.contains("auth switch --hostname github.com --user carol"));
-    assert!(output.contains("GitHub browser login") && output.contains("Identity added · work"));
+    assert!(
+        output.contains("GitHub browser login")
+            && output.contains("Identity added            work")
+    );
     assert!(
         output.contains(
             sandbox
@@ -89,24 +93,18 @@ fn new_authenticates_preserves_existing_data_and_comments_and_sets_up_the_identi
         0o600
     );
 
-    for mode in ["protections", "verbose"] {
-        assert!(
-            sandbox
-                .path(&format!("state/multigh/{mode}-enabled"))
-                .is_file()
-        );
-    }
+    assert!(sandbox.path("state/multigh/verbose-enabled").is_file());
 
     assert!(
         !sandbox
-            .run("git", &["config", "--get-all", "mgh.allowedAccount"])
+            .run("git", &["config", "--get-all", "mgh.allowed-identity"])
             .status
             .success()
     );
 }
 
 #[test]
-fn new_reuses_an_existing_login_and_optionally_authorizes_the_repository() {
+fn new_reuses_login_and_repo_permissions_are_added_separately() {
     let sandbox = Sandbox::new();
 
     sandbox.protect();
@@ -114,6 +112,7 @@ fn new_reuses_an_existing_login_and_optionally_authorizes_the_repository() {
     sandbox.ok(
         "mgh",
         &[
+            "identity",
             "new",
             "work",
             "--username",
@@ -122,7 +121,6 @@ fn new_reuses_an_existing_login_and_optionally_authorizes_the_repository() {
             "carol@example.com",
             "--name",
             "Carol Example",
-            "--repo",
         ],
     );
 
@@ -131,8 +129,10 @@ fn new_reuses_an_existing_login_and_optionally_authorizes_the_repository() {
             .unwrap()
             .contains("auth login")
     );
+    sandbox.ok("mgh", &["repo", "allowed", "add", "work"]);
+    sandbox.ok("mgh", &["switch", "work"]);
     assert_eq!(
-        sandbox.ok("git", &["config", "--get-all", "mgh.allowedAccount"]),
+        sandbox.ok("git", &["config", "--get-all", "mgh.allowed-identity"]),
         "personal\nwork\n"
     );
     assert_eq!(
@@ -143,7 +143,7 @@ fn new_reuses_an_existing_login_and_optionally_authorizes_the_repository() {
         sandbox.ok("git", &["config", "--local", "user.email"]),
         "carol@example.com\n"
     );
-    sandbox.ok("mgh", &["check"]);
+    sandbox.ok("mgh", &["repo", "check"]);
 }
 
 #[test]
@@ -214,7 +214,7 @@ fn new_prompts_for_missing_fields_and_uses_the_default_commit_name() {
     sandbox.write("login-accounts-json", LOGIN);
 
     let (status, output) = terminal(
-        sandbox.command("mgh").arg("new"),
+        sandbox.command("mgh").args(["identity", "new"]),
         &[
             ("Identity name: ", b"Work\r"),
             ("GitHub username: ", b"carol\r"),
@@ -245,6 +245,7 @@ fn new_commit_name_prompt_accepts_an_override_and_shows_the_username_default() {
 
     let (status, output) = terminal(
         sandbox.command("mgh").args([
+            "identity",
             "new",
             "work",
             "--username",
@@ -270,7 +271,7 @@ fn new_cancelled_prompts_and_missing_noninteractive_fields_leave_settings_intact
     let global = fs::read(sandbox.path("gitconfig")).unwrap();
     for keys in [b"\x1b".as_slice(), b"\x03".as_slice()] {
         let (status, output) = terminal(
-            sandbox.command("mgh").arg("new"),
+            sandbox.command("mgh").args(["identity", "new"]),
             &[("Identity name", keys)],
         );
 
@@ -279,10 +280,10 @@ fn new_cancelled_prompts_and_missing_noninteractive_fields_leave_settings_intact
             assert!(output.contains("Operation cancelled."), "{output}");
         }
     }
-    sandbox.blocked("mgh", &["new"], "requires a terminal");
+    sandbox.blocked("mgh", &["identity", "new"], "requires a terminal");
     sandbox.blocked(
         "mgh",
-        &["new", "work", "--username", "carol"],
+        &["identity", "new", "work", "--username", "carol"],
         "requires a terminal",
     );
     assert_eq!(
@@ -363,6 +364,7 @@ fn new_rejects_duplicates_invalid_fields_and_multiline_values_before_authenticat
         sandbox.blocked(
             "mgh",
             &[
+                "identity",
                 "new",
                 identity_name,
                 "--username",
@@ -500,7 +502,7 @@ fn new_rejects_invalid_existing_configs_symlinks_and_repo_option_outside_a_repos
         .unwrap();
 
     assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("--repo must be run inside"));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("unexpected argument"));
     assert!(!sandbox.path("gh-calls").exists());
 }
 
@@ -514,6 +516,7 @@ fn new_does_not_create_a_config_after_failed_login_and_keeps_custom_recovery_pat
         &[
             "--config",
             "../custom/identities.jsonc",
+            "identity",
             "new",
             "work",
             "--username",
@@ -536,13 +539,13 @@ fn new_does_not_create_a_config_after_failed_login_and_keeps_custom_recovery_pat
         &[
             "--config",
             "../custom/identities.jsonc",
+            "identity",
             "new",
             "work",
             "--username",
             "carol",
             "--email",
             "carol@example.com",
-            "--repo",
         ],
     );
     let error = String::from_utf8_lossy(&output.stderr);
@@ -551,7 +554,7 @@ fn new_does_not_create_a_config_after_failed_login_and_keeps_custom_recovery_pat
     assert!(
         error.contains("--config")
             && error.contains("custom/identities.jsonc")
-            && error.contains("switch work --repo"),
+            && error.contains("switch work"),
         "{error}"
     );
     assert!(sandbox.path("custom/identities.jsonc").is_file());

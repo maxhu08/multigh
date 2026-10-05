@@ -12,17 +12,20 @@ pub enum Color {
     Error,
 }
 
-pub fn paint(value: &str, color: Color, error: bool) -> String {
+pub fn color_enabled(error: bool) -> bool {
     let terminal = if error {
         io::stderr().is_terminal()
     } else {
         io::stdout().is_terminal()
     };
 
-    if !terminal
-        || env::var_os("NO_COLOR").is_some()
-        || env::var("TERM").is_ok_and(|term| term == "dumb")
-    {
+    terminal
+        && env::var_os("NO_COLOR").is_none()
+        && !env::var("TERM").is_ok_and(|term| term == "dumb")
+}
+
+pub fn paint(value: &str, color: Color, error: bool) -> String {
+    if !color_enabled(error) {
         return value.to_owned();
     }
 
@@ -42,16 +45,45 @@ pub fn section(title: &str) {
     println!("\n  {}", paint(title, Color::Heading, false));
 }
 
+fn columns(label: &str, value: &str, color: Color, indent: usize) -> String {
+    const VALUE_COLUMN: usize = 30;
+
+    let padding = VALUE_COLUMN.saturating_sub(indent + label.chars().count());
+    let gap = if padding == 0 {
+        format!("\n{:VALUE_COLUMN$}", "")
+    } else {
+        " ".repeat(padding)
+    };
+
+    format!(
+        "{:indent$}{}{gap}{}",
+        "",
+        paint(label, color, false),
+        value.replace('\n', &format!("\n{:VALUE_COLUMN$}", ""))
+    )
+}
+
+pub fn heading(label: &str, value: &str, color: Color) {
+    println!(
+        "\n{}",
+        columns(label, &paint(value, color, false), Color::Heading, 2)
+    );
+}
+
+pub fn form_heading(label: &str, value: &str) -> String {
+    columns(label, value, Color::Heading, 3)
+        .trim_start()
+        .to_owned()
+}
+
 pub fn row(label: &str, value: &str, color: Color) {
     nested_row(label, value, color, 2);
 }
 
 pub fn nested_row(label: &str, value: &str, color: Color, indent: usize) {
     println!(
-        "{:indent$}{}{}",
-        "",
-        paint(&format!("{label:<16} "), Color::Muted, false),
-        paint(value, color, false)
+        "{}",
+        columns(label, &paint(value, color, false), Color::Muted, indent)
     );
 }
 
@@ -59,9 +91,8 @@ pub fn change(label: &str, before: &str, after: &str) {
     if before == after {
         row(label, after, Color::Value);
     } else {
-        println!(
-            "  {}{} → {}",
-            paint(&format!("{label:<16} "), Color::Muted, false),
+        let value = format!(
+            "{} → {}",
             paint(
                 if before.is_empty() {
                     "not configured"
@@ -73,13 +104,18 @@ pub fn change(label: &str, before: &str, after: &str) {
             ),
             paint(after, Color::Changed, false)
         );
+        println!("{}", columns(label, &value, Color::Muted, 2));
     }
 }
 
 pub fn warning(message: &str) {
     println!(
         "\n  {}",
-        paint(&format!("⚠ {message}"), Color::Warning, false)
+        paint(
+            &format!("⚠ {}", message.replace('\n', "\n  ")),
+            Color::Warning,
+            false
+        )
     );
 }
 
@@ -89,4 +125,14 @@ pub fn error(message: &str) {
         paint("✕ mgh", Color::Error, true),
         message.replace('\n', "\n\n  ")
     );
+}
+
+pub fn block(value: &str, error: bool) {
+    for line in value.lines() {
+        if error {
+            eprintln!("  {line}");
+        } else {
+            println!("  {line}");
+        }
+    }
 }

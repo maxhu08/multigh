@@ -1,20 +1,15 @@
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use clap_complete::Shell;
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(
-    name = "mgh",
-    version,
-    about,
-    arg_required_else_help = true,
-    after_help = include_str!("../docs/help/mgh.txt").trim()
-)]
+#[command(name = "mgh", version, about, arg_required_else_help = true,
+    after_help = include_str!("../docs/help/mgh.txt").trim())]
 pub struct Cli {
     #[arg(
         long,
         global = true,
-        help = "Read identity mappings from this file (default: ~/.config/multigh/identities.jsonc)"
+        help = "Identity configuration (default: ~/.config/multigh/identities.jsonc)"
     )]
     pub config: Option<PathBuf>,
 
@@ -24,149 +19,143 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Command {
-    #[command(
-        about = "Add an identity and sign in to its GitHub account",
-        after_help = include_str!("../docs/help/new.txt").trim()
+    #[command(about = "Set up identities, Git hooks and shell integration", after_help = include_str!("../docs/help/setup.txt").trim())]
+    Setup,
+    #[command(about = "Show global identities and current repository settings", after_help = include_str!("../docs/help/status.txt").trim())]
+    Status {
+        #[arg(long, help = "Include the full GitHub authentication report")]
+        full: bool,
+    },
+    #[command(about = "Switch GitHub authentication and commit details", after_help = include_str!("../docs/help/switch.txt").trim())]
+    Switch {
+        #[arg(help = "Case-insensitive identity name, such as personal, school or work")]
+        identity: String,
+    },
+    #[command(about = "Diagnose configuration, authentication, tools and hooks", after_help = include_str!("../docs/help/doctor.txt").trim())]
+    Doctor,
+    #[command(about = "Manage global identities; omit a subcommand to list them", after_help = include_str!("../docs/help/identity.txt").trim())]
+    Identity {
+        #[command(subcommand)]
+        command: Option<IdentityCommand>,
+    },
+    #[command(about = "Manage only this repository; omit a subcommand for status", after_help = include_str!("../docs/help/repo.txt").trim())]
+    Repo {
+        #[command(subcommand)]
+        command: Option<RepoCommand>,
+    },
+    #[command(about = "Manage global preferences; omit a subcommand to show them", after_help = include_str!("../docs/help/settings.txt").trim())]
+    Settings {
+        #[command(subcommand)]
+        command: Option<SettingsCommand>,
+    },
+    #[command(about = "Generate shell integration and completions", after_help = include_str!("../docs/help/shell.txt").trim())]
+    Shell {
+        #[command(subcommand)]
+        command: ShellCommand,
+    },
+    #[command(hide = true)]
+    Internal {
+        #[command(subcommand)]
+        command: InternalCommand,
+    },
+}
+
+#[derive(Args)]
+pub struct IdentityFields {
+    #[arg(
+        long,
+        help = "GitHub username; prompted for new identities, preserved for edits"
     )]
+    pub username: Option<String>,
+    #[arg(
+        long,
+        help = "Commit email; prompted for new identities, preserved for edits"
+    )]
+    pub email: Option<String>,
+    #[arg(
+        long,
+        help = "Commit name; defaults to username for new identities, preserved for edits"
+    )]
+    pub name: Option<String>,
+}
+
+#[derive(Subcommand)]
+pub enum IdentityCommand {
+    #[command(about = "List global identity names and GitHub/commit details")]
+    List,
+    #[command(about = "Add a global identity and sign into GitHub", after_help = include_str!("../docs/help/new.txt").trim())]
     New {
         #[arg(help = "New case-insensitive identity name; omit to be prompted")]
         identity: Option<String>,
-
-        #[arg(long, help = "GitHub username; omit to be prompted")]
-        username: Option<String>,
-
-        #[arg(long, help = "Default commit email; omit to be prompted")]
-        email: Option<String>,
-
-        #[arg(long, help = "Commit name; defaults to the GitHub username")]
-        name: Option<String>,
-
-        #[arg(
-            long,
-            help = "Also authorize the new identity for the current repository"
-        )]
-        repo: bool,
+        #[command(flatten)]
+        fields: IdentityFields,
     },
-
-    #[command(
-        about = "Select an identity and switch GitHub authentication and commit details",
-        after_help = include_str!("../docs/help/switch.txt").trim()
-    )]
-    Switch {
-        #[arg(
-            help = "Case-insensitive identity name in identities.jsonc, such as personal, school or work"
-        )]
+    #[command(about = "Edit a global identity while preserving config comments", after_help = include_str!("../docs/help/edit.txt").trim())]
+    Edit {
         identity: String,
-
-        #[arg(long, help = "Also authorize this identity for the current repository")]
-        repo: bool,
+        #[command(flatten)]
+        fields: IdentityFields,
     },
+    #[command(about = "Remove a global identity without signing out of GitHub", after_help = include_str!("../docs/help/remove.txt").trim())]
+    Remove { identity: String },
+}
 
-    #[command(
-        about = "Show identities and repository protection",
-        after_help = include_str!("../docs/help/status.txt").trim()
-    )]
-    Status {
-        #[arg(
-            long,
-            help = "Also run gh auth status for detailed authentication information"
-        )]
-        full: bool,
-    },
-
-    #[command(
-        about = "Show or toggle the fast shell welcome",
-        after_help = include_str!("../docs/help/welcome.txt").trim()
-    )]
-    Welcome {
-        #[arg(help = "Enable or disable the welcome; omit to print it when enabled")]
-        state: Option<Toggle>,
-    },
-
-    #[command(
-        about = "Refresh identity rules and enable protections and verbose output",
-        after_help = include_str!("../docs/help/setup.txt").trim()
-    )]
-    Setup,
-
-    #[command(
-        about = "Toggle protections or choose this repository's allowed identities",
-        after_help = include_str!("../docs/help/protections.txt").trim()
-    )]
-    Protections {
-        #[arg(help = "Enable or disable identity enforcement; omit to show its status")]
-        state: Option<Toggle>,
-
-        #[arg(long, conflicts_with_all = ["state", "allow"], help = "Open the identity checklist for this repository")]
-        repo: bool,
-
-        #[arg(long, value_delimiter = ',', num_args = 1.., conflicts_with = "state", help = "Set allowed identity names without a picker, e.g. personal,school,work")]
-        allow: Vec<String>,
-    },
-
-    #[command(about = "Toggle allowed-identity output on directory entry and terminal startup", after_help = include_str!("../docs/help/verbose.txt").trim())]
-    Verbose {
-        #[arg(help = "Enable or disable entry output; omit to show its status")]
-        state: Option<Toggle>,
-    },
-
-    #[command(about = "Generate shell integration for directory entry and terminal startup", after_help = include_str!("../docs/help/init.txt").trim())]
-    Init { shell: IntegrationShell },
-
-    #[command(
-        hide = true,
-        about = "Handle entering a repository from shell integration"
-    )]
-    Enter,
-
-    #[command(
-        about = "Check authentication and commit details against the selected identity in this repository",
-        after_help = include_str!("../docs/help/check.txt").trim()
-    )]
+#[derive(Subcommand)]
+pub enum RepoCommand {
+    #[command(about = "Show this repository's permissions, commit identity and hooks")]
+    Status,
+    #[command(about = "Verify authentication and commit identity, even with protections off", after_help = include_str!("../docs/help/check.txt").trim())]
     Check,
-
-    #[command(
-        about = "Generate shell tab completions",
-        after_help = include_str!("../docs/help/completions.txt").trim()
-    )]
-    Completions {
-        #[arg(help = "Shell to generate completion definitions for; writes to stdout")]
-        shell: Shell,
-    },
-
-    #[command(
-        hide = true,
-        about = "Run an internal check invoked by installed Git hooks",
-        after_help = include_str!("../docs/help/hook.txt").trim()
-    )]
-    Hook {
+    #[command(about = "Toggle protection here; default ON, omit state to show", after_help = include_str!("../docs/help/protections.txt").trim())]
+    Protections { state: Option<Toggle> },
+    #[command(about = "Manage allowed identities here; omit a subcommand to list", after_help = include_str!("../docs/help/allowed.txt").trim())]
+    Allowed {
         #[command(subcommand)]
-        kind: Hook,
+        command: Option<AllowedCommand>,
     },
 }
 
 #[derive(Subcommand)]
-pub enum Hook {
-    #[command(
-        about = "Check live authentication and actual author/committer names and emails before a commit"
-    )]
-    Commit,
+pub enum AllowedCommand {
+    #[command(about = "Show identities permitted in this repository")]
+    List,
+    #[command(about = "Allow an existing global identity in this repository")]
+    Add { identity: String },
+    #[command(about = "Remove an identity's permission in this repository")]
+    Remove { identity: String },
+    #[command(about = "Choose allowed identities with a Space/Enter checklist; no arguments")]
+    Update,
+}
 
-    #[command(
-        about = "Check live authentication and outgoing commits using Git's push input on stdin"
-    )]
-    Push {
-        #[arg(help = "Remote name supplied by Git")]
-        remote: String,
+#[derive(Subcommand)]
+pub enum SettingsCommand {
+    #[command(about = "Toggle identity switching on entry to every repo; omit state to show", after_help = include_str!("../docs/help/autoswitch.txt").trim())]
+    Autoswitch { state: Option<Toggle> },
+    #[command(about = "Toggle global repo-entry reports; omit state to show", after_help = include_str!("../docs/help/verbose.txt").trim())]
+    Verbose { state: Option<Toggle> },
+    #[command(about = "Toggle the terminal welcome globally; omit state to show", after_help = include_str!("../docs/help/welcome.txt").trim())]
+    Welcome { state: Option<Toggle> },
+}
 
-        #[arg(help = "Actual push destination URL supplied by Git")]
-        url: String,
+#[derive(Subcommand)]
+pub enum ShellCommand {
+    #[command(about = "Print Fish, Bash or Zsh startup, entry and git init integration", after_help = include_str!("../docs/help/init.txt").trim())]
+    Init { shell: IntegrationShell },
+    #[command(about = "Print tab completion definitions", after_help = include_str!("../docs/help/completions.txt").trim())]
+    Completions { shell: Shell },
+}
+
+#[derive(Subcommand)]
+pub enum InternalCommand {
+    Enter,
+    Welcome,
+    #[command(disable_help_flag = true)]
+    Git {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
     },
-
-    #[command(hide = true)]
-    Run {
+    Hook {
         name: String,
-
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },

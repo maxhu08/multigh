@@ -1,33 +1,17 @@
 Details:
-    Add a new identity while preserving existing identities, JSONC comments and
-    formatting. Prompt for missing identity name, GitHub username, commit name and
-    email in a terminal. Use a cliclack form titled Add new identity. Labels end
-    with a colon and space; input appears beneath them. Show Commit name
-    (default: <username>):. Press Enter to use that default; Esc or Ctrl+C
-    cancels without saving. Identity names are case insensitive; usernames and
-    emails must be unique across identities. The commit name defaults to the
-    GitHub username. Outside a terminal, supply the identity name, --username
-    and --email; --name is optional. Interactive forms require terminal input,
-    stdout and stderr; prompts are rendered on stderr.
+    Add a global case-insensitive identity. Prompt for missing identity name,
+    GitHub username, commit name and commit email using cliclack. Commit name
+    defaults to the username. Noninteractive use requires identity, --username
+    and --email. Esc or Ctrl+C cancels without saving. Existing comments and
+    formatting are preserved; symlinks require --config with their target.
 
-    Reuse a successful GitHub CLI login when available. Otherwise open gh's
-    browser login and verify that the requested username is signed in before
-    saving. Authorize the intended GitHub account in the browser. Tokens remain
-    in gh. Invalid input, cancelled prompts or failed login leave the identity
-    configuration intact.
-
-    Create identities.jsonc if needed, or add to the existing JSONC object.
-    Save atomically and print its path. Run
-    setup to refresh identity rules and hooks and enable
-    protections and verbose, then switch authentication and global commit
-    defaults to the new identity's details. --repo explicitly adds it to this
-    repository's allowed list. Other repositories retain their identity
-    restrictions. --config and XDG_CONFIG_HOME are respected. If setup or
-    switching fails after saving, the identity stays saved; fix the reported
-    problem and retry setup and switch. Requires Git 2.45 or newer.
+    Reuse an existing successful gh login, or open browser authentication and
+    verify the requested username. Save privately and atomically, refresh setup
+    and select the identity. Failed authentication or concurrent config edits
+    preserve the original config. If refresh/switch fails after saving, report
+    recovery instructions. Repository permissions remain unchanged; use
+    mgh repo allowed add <identity> separately.
 
 Examples:
-    mgh new
-    mgh new personal
-    mgh new school --username school-login --email school@example.edu
-    mgh new work --username work-login --email work@example.com --name "Your Name" --repo
+    mgh identity new
+    mgh identity new work --username work-login --email work@example.com

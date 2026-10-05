@@ -6,7 +6,7 @@ fn every_installed_launcher_forwards_existing_hooks_when_protections_are_off() {
     let sandbox = Sandbox::new();
 
     sandbox.protect();
-    sandbox.ok("mgh", &["protections", "off"]);
+    sandbox.ok("mgh", &["repo", "protections", "off"]);
     fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
 
     for name in [

@@ -198,12 +198,6 @@ impl Config {
             );
         }
 
-        ensure!(
-            !identities.is_empty(),
-            "Add an identity to {}",
-            path.display()
-        );
-
         Ok(Self { path, identities })
     }
 

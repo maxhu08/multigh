@@ -1,17 +1,17 @@
 Getting started:
-    Run mgh new to sign in, save an identity, run setup and select it. Repeat to
-    add identities. You can also copy examples/identities.jsonc, fill in your
-    identities, sign in with gh auth login and run setup manually. Setup enables
-    protections and verbose. Load mgh init <shell> in shell config for
-    missing-identity checklists and allowed-identity reports on entry/startup.
+    Run mgh setup to create your first identity and install Git hooks.
+    Add more with mgh identity new. Inside a repo, run mgh repo allowed update
+    to choose permissions, then mgh switch <identity>. Run mgh doctor for issues.
 
     An identity is a configured identity name such as personal, school or work,
-    mapped to a GitHub account and commit details. Commands use identity names,
-    not GitHub usernames. Names are case insensitive; Personal, PERSONAL and
-    personal are equivalent.
+    mapped to a GitHub account and commit details. Personal, PERSONAL and personal
+    are equivalent. Identity and settings commands are global; repo commands
+    affect only the current Git repository. Repo protections default ON.
 
 Configuration:
-    XDG_CONFIG_HOME changes the default config directory. --config selects
-    another file. Identity files, shared hooks and preferences use
-    XDG_STATE_HOME/multigh or ~/.local/state/multigh. Repository allowed
-    identities live in local Git config.
+    --config selects another JSON or JSONC file. The default is
+    ~/.config/multigh/identities.jsonc, or XDG_CONFIG_HOME/multigh/identities.jsonc.
+    Identity files, hooks and global preferences use XDG_STATE_HOME/multigh,
+    defaulting to ~/.local/state/multigh. Repo permissions and protections are
+    local Git configuration; autoswitch is global under mgh settings.
+    Load mgh shell init <shell> for entry/startup behavior.

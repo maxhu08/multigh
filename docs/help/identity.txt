@@ -1,0 +1,12 @@
+Details:
+    These commands manage the global identity configuration. With no subcommand,
+    list configured identities and their GitHub and commit details. Identity
+    names are case insensitive. list is read-only; new, edit and remove save
+    private configuration and update generated identity rules. Repository
+    permissions are managed separately by mgh repo allowed.
+
+Examples:
+    mgh identity
+    mgh identity new
+    mgh identity edit work --email work@example.com
+    mgh identity remove work

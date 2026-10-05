@@ -13,7 +13,7 @@ fn setup_enables_modes_and_unconfigured_clones_stay_blocked() {
         &["commit", "--allow-empty", "-m", "Unconfigured"],
         "No identities are authorized",
     );
-    sandbox.ok("mgh", &["protections", "--allow", "personal"]);
+    sandbox.allow("personal");
     sandbox.commit();
 
     for (name, flags) in [
@@ -65,7 +65,7 @@ fn empty_clones_remain_blocked_until_identities_are_selected() {
     let output = sandbox
         .command("mgh")
         .current_dir(sandbox.path("empty"))
-        .args(["protections", "--allow", "personal"])
+        .args(["repo", "allowed", "add", "personal"])
         .output()
         .unwrap();
 

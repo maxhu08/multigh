@@ -121,7 +121,7 @@ fn cocogitto_and_mgh_enforce_messages_and_identity_without_replacing_shared_hook
         "GitHub is using bob",
     );
 
-    sandbox.ok("mgh", &["protections", "off"]);
+    sandbox.ok("mgh", &["repo", "protections", "off"]);
     sandbox.blocked(
         "git",
         &["commit", "--allow-empty", "-m", "update project"],

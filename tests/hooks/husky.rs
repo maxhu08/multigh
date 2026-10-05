@@ -25,7 +25,7 @@ fn repository_hook_paths_keep_checks_and_push_input_with_mgh() {
     );
     sandbox.ok("git", &["config", "--local", "core.hooksPath", ".husky/_"]);
 
-    let entry = sandbox.ok("mgh", &["enter"]);
+    let entry = sandbox.ok("mgh", &["internal", "enter"]);
 
     assert!(entry.contains("Existing hooks detected"));
     assert!(entry.contains("Identity protections are active; your existing checks are preserved."));
@@ -41,11 +41,11 @@ fn repository_hook_paths_keep_checks_and_push_input_with_mgh() {
     );
     assert!(!entry.contains(".husky/_"));
 
-    sandbox.ok("mgh", &["verbose", "off"]);
+    sandbox.ok("mgh", &["settings", "verbose", "off"]);
 
-    assert!(sandbox.ok("mgh", &["enter"]).is_empty());
+    assert!(sandbox.ok("mgh", &["internal", "enter"]).is_empty());
 
-    sandbox.ok("mgh", &["verbose", "on"]);
+    sandbox.ok("mgh", &["settings", "verbose", "on"]);
 
     assert_eq!(
         sandbox
@@ -111,11 +111,11 @@ fn repository_hook_paths_keep_checks_and_push_input_with_mgh() {
         &["commit", "--allow-empty", "-m", "Rejected"],
         "husky-message-rejected",
     );
-    sandbox.ok("mgh", &["protections", "off"]);
+    sandbox.ok("mgh", &["repo", "protections", "off"]);
 
     assert!(
         !sandbox
-            .ok("mgh", &["enter"])
+            .ok("mgh", &["internal", "enter"])
             .contains("Identity protections are active;")
     );
 

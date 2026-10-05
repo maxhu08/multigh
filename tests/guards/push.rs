@@ -16,7 +16,7 @@ fn push_checks_outgoing_commits_and_chains_hook_input() {
         "#!/bin/sh\ncat > \"$TEST_MGH_ROOT/updates\"\n",
     );
     sandbox.protect();
-    sandbox.ok("git", &["config", "mgh.account", "PERSONAL"]);
+    sandbox.ok("git", &["config", "mgh.current-identity", "PERSONAL"]);
     sandbox.commit();
     sandbox.ok("git", &["init", "--bare", "../remote.git"]);
     sandbox.ok("git", &["remote", "set-url", "origin", "../remote.git"]);

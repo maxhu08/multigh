@@ -21,7 +21,7 @@ fn malformed_updates_and_invalid_encoding_block_before_forwarding() {
     ] {
         let output = sandbox.input(
             "mgh",
-            &["hook", "run", "pre-push", "origin", "../remote"],
+            &["internal", "hook", "pre-push", "origin", "../remote"],
             input,
         );
 
@@ -47,7 +47,7 @@ fn deleting_refs_requires_allowed_authentication_but_does_not_scan_deleted_histo
             "0".repeat(length),
             "a".repeat(length)
         );
-        let output = sandbox.input("mgh", &["hook", "run", "pre-push"], input.as_bytes());
+        let output = sandbox.input("mgh", &["internal", "hook", "pre-push"], input.as_bytes());
 
         assert!(
             output.status.success(),
@@ -63,7 +63,7 @@ fn deleting_refs_requires_allowed_authentication_but_does_not_scan_deleted_histo
         "0".repeat(40),
         "a".repeat(40)
     );
-    let output = sandbox.input("mgh", &["hook", "run", "pre-push"], input.as_bytes());
+    let output = sandbox.input("mgh", &["internal", "hook", "pre-push"], input.as_bytes());
 
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("GitHub is using bob"));
@@ -82,7 +82,7 @@ fn missing_remote_baselines_require_fetching_before_a_push() {
         head.trim(),
         "a".repeat(40)
     );
-    let output = sandbox.input("mgh", &["hook", "run", "pre-push"], input.as_bytes());
+    let output = sandbox.input("mgh", &["internal", "hook", "pre-push"], input.as_bytes());
 
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("Fetch the remote and try again"));

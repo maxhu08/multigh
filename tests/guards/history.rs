@@ -127,7 +127,7 @@ fn sha256_repositories_check_outgoing_commits_using_full_length_ids() {
     };
 
     assert!(
-        run("mgh", &["protections", "--allow", "personal"])
+        run("mgh", &["repo", "allowed", "add", "personal"])
             .status
             .success()
     );

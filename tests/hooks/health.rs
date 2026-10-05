@@ -15,7 +15,7 @@ fn shared_hook_aliases_do_not_chain_back_into_themselves() {
         "git",
         &["config", "--local", "core.hooksPath", "shared-alias"],
     );
-    sandbox.ok("mgh", &["enter"]);
+    sandbox.ok("mgh", &["internal", "enter"]);
 
     assert!(
         !sandbox
@@ -51,7 +51,7 @@ fn missing_changed_or_non_executable_hooks_do_not_report_active_protections() {
     fs::remove_file(shared.join("pre-commit")).unwrap();
     fs::set_permissions(shared.join("pre-push"), fs::Permissions::from_mode(0o644)).unwrap();
 
-    let entry = sandbox.ok("mgh", &["enter"]);
+    let entry = sandbox.ok("mgh", &["internal", "enter"]);
 
     assert!(entry.contains("Missing mgh hook: pre-commit"));
     assert!(entry.contains("mgh hook is not executable: pre-push"));
@@ -67,14 +67,14 @@ fn missing_changed_or_non_executable_hooks_do_not_report_active_protections() {
 
     assert!(
         sandbox
-            .ok("mgh", &["enter"])
+            .ok("mgh", &["internal", "enter"])
             .contains("Identity protections are active;")
     );
 
     sandbox.commit();
     fs::write(shared.join("pre-push"), "#!/bin/sh\nexit 0\n").unwrap();
 
-    let entry = sandbox.ok("mgh", &["enter"]);
+    let entry = sandbox.ok("mgh", &["internal", "enter"]);
 
     assert!(entry.contains("mgh hook is unreadable or changed: pre-push"));
     assert!(!entry.contains("Identity protections are active;"));
@@ -89,7 +89,7 @@ fn global_and_command_hook_overrides_are_reported_without_false_confirmation() {
     sandbox.executable("repo/custom/pre-commit", "#!/bin/sh\nexit 0\n");
     sandbox.ok("git", &["config", "--global", "core.hooksPath", "custom"]);
 
-    let entry = sandbox.ok("mgh", &["enter"]);
+    let entry = sandbox.ok("mgh", &["internal", "enter"]);
 
     assert!(entry.contains("global hook path overrides mgh: custom"));
     assert!(entry.contains("custom/pre-commit"));
@@ -116,7 +116,7 @@ fn global_and_command_hook_overrides_are_reported_without_false_confirmation() {
         .env("GIT_CONFIG_COUNT", "1")
         .env("GIT_CONFIG_KEY_0", "core.hooksPath")
         .env("GIT_CONFIG_VALUE_0", "custom")
-        .arg("enter")
+        .args(["internal", "enter"])
         .output()
         .unwrap();
 
@@ -148,7 +148,7 @@ fn integration_rechecks_effective_settings_after_writing_git_config() {
         &["config", "--local", "include.path", "../override.conf"],
     );
 
-    let entry = sandbox.ok("mgh", &["enter"]);
+    let entry = sandbox.ok("mgh", &["internal", "enter"]);
 
     assert!(entry.contains("local hook path overrides mgh: custom"));
     assert!(!entry.contains("Identity protections are active;"));

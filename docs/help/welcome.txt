@@ -1,16 +1,10 @@
 Details:
-    With no argument, show a purple Identity label and green identity name in
-    the second column without a separator, aligned with the GitHub username and
-    effective commit email below. Colors require a capable terminal and respect
-    NO_COLOR. When welcome is disabled, print nothing. on and off save the preference
-    without switching identities.
-
-    Add mgh welcome to your shell's startup greeting to display it
-    automatically. It maps the locally selected GitHub account to an identity
-    for fast startup; use mgh status for live authentication information. The
-    preference is stored outside the repo.
+    Enable or disable the fast terminal greeting globally. With no state, show
+    the preference. The greeting prints identity, GitHub username and commit
+    email using gh's local selection rather than live authentication.
+    Add mgh internal welcome to your shell's interactive greeting after mgh
+    is on PATH. This does not replace repo protections or shell integration.
 
 Examples:
-    mgh welcome on
-    mgh welcome
-    mgh welcome off
+    mgh settings welcome on
+    mgh settings welcome off

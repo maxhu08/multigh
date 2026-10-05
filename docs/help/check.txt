@@ -1,13 +1,8 @@
 Details:
-    Validate live gh authentication against this repository's allowed
-    identities, then check actual author and committer names and emails for that
-    identity. Author and committer overrides from Git options and environment
-    are included.
-
-    Success is silent; mismatches and unconfigured repos exit with an error.
-    Outside a repository, no check is performed. This manual command checks even
-    when protections are off. Outgoing history is checked by the push hook.
+    Require a Git repo and verify live gh authentication and actual author and
+    committer details against its allowed identities. This explicit check runs
+    even with repo protections off. Success is silent; errors identify what to
+    fix. Push hooks also scan outgoing history; repo check does not.
 
 Examples:
-    mgh check
-    mgh --config /path/to/identities.jsonc check
+    mgh repo check

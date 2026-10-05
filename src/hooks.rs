@@ -78,7 +78,7 @@ pub fn install(config: &Config, global: &mut git::GlobalConfig<'_>) -> Result<()
     let configuration = process::quote(&config.path.to_string_lossy());
 
     for &name in NAMES {
-        let command = format!("{launcher} --config {configuration} hook run {name} \"$@\"");
+        let command = format!("{launcher} --config {configuration} internal hook {name} \"$@\"");
         let body = if name == "post-checkout" {
             format!("if [ -t 1 ]; then\n    exec {command} 0<&1\nfi\nexec {command}\n")
         } else {
@@ -149,7 +149,7 @@ fn setting() -> Result<Option<(String, PathBuf)>> {
     }))
 }
 
-fn shared_problems() -> Result<Vec<String>> {
+pub fn shared_problems() -> Result<Vec<String>> {
     let directory = directory()?;
     let mut problems = Vec::new();
 
@@ -350,7 +350,7 @@ pub fn run(path: PathBuf, name: &str, args: &[String]) -> Result<()> {
         std::io::stdin().read_to_end(&mut updates)?;
     }
 
-    if settings::enabled("protections")? {
+    if settings::protections()? {
         match name {
             "pre-commit" | "pre-merge-commit" => guard::check(&Config::load(path)?)?,
             "pre-push" => guard::push(&Config::load(path)?, std::str::from_utf8(&updates)?)?,

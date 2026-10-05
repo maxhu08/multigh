@@ -10,17 +10,77 @@ change when code changes their behavior or make their guidance inaccurate.
 | --- | --- |
 | `main.rs` | Parse arguments, dispatch commands and report errors. |
 | `cli.rs` | Define clap commands, flags and help. |
-| `commands/` | Implement identity creation, switching, status, welcome, modes and repo entry. |
+| `commands/` | Implement global identities, repository controls, preferences, setup, diagnostics and shell integration. |
 | `config.rs` | Load and validate identity mappings. |
 | `git.rs` | Read Git settings and maintain conditional identity files. |
 | `github.rs` | Read, verify browser login or switch GitHub CLI authentication. |
 | `policy.rs` | Store allowed identities, choose them with cliclack, and select identities. |
 | `hooks.rs` | Install shared hooks, dispatch checks and forward existing hooks. |
 | `guard.rs` | Validate live authentication, commit details and outgoing history. |
-| `settings.rs` | Store preference markers in the private state directory. |
+| `settings.rs` | Store global preference markers and read repository-local toggles. |
 | `output.rs` | Format output with spacing and optional color. |
 | `process.rs` | Capture or inherit external command I/O and quote shell arguments. |
-| `shell/` | Embedded Fish, Bash and Zsh integration for directory entry. |
+| `shell/` | Embedded Fish, Bash and Zsh integration for directory entry and Git initialization. |
+
+Command modules mirror the public groups: `commands/identity/`,
+`commands/repo/`, `commands/settings/` and `commands/shell/`. The dispatcher has
+one route for each group. Removed root commands have no aliases or separate
+implementations. A hidden `internal` group provides shell entry, welcome rendering
+and hook dispatch; generated scripts use these handlers directly. The hidden Git
+forwarder runs native Git before invoking entry behavior after initialization.
+
+Every `repo` command checks for a repository before loading configuration or
+mutating settings. Protections read local `mgh.protections`, defaulting to true;
+invalid boolean values cause an error. Protections and permissions live in the
+repository's common config and are shared by linked worktrees. Status obtains its
+absolute config filepath through `git::local_path`, so linked worktrees and bare
+repos report the file that stores local settings. Global autoswitch, verbose and
+welcome preferences use state markers. Autoswitch defaults off and ignores the
+obsolete local `mgh.autoswitch` key. Setup enables verbose once, then preserves
+global preferences and explicit repository protection exceptions.
+
+Setup with a missing or empty config uses the same first-identity form as
+`identity new`; a populated config only refreshes integration. Identity editing
+changes individual CST properties and preserves additional emails, comments and
+other identities. Editing validates before login and checks for concurrent changes
+before a private atomic save. Removal leaves GitHub authentication and repository
+permissions intact; stale permission references fail closed until explicitly
+updated. An empty global identity map is valid so users can remove their last
+identity and onboard again.
+
+Repository permission updates use the local `mgh.allowed-identity` list. Removing
+its last entry saves an explicit empty value, preventing the old preferred
+`mgh.current-identity` value from silently restoring permission. The checklist requires
+at least one selection; individual removal can leave a repo with none.
+
+Autoswitch runs only during repository entry or explicit enabling. A sole allowed
+identity switches without a picker when needed. Multiple allowed identities always
+use a cliclack select, highlighting the current one if allowed. Cancellation or
+nonterminal input leaves authentication unchanged. Commit and push hooks enforce
+policy without prompting or switching. Directory entry catches failures so the
+shell remains usable while protections continue to reject invalid operations.
+
+Successful autoswitch uses the shared switch implementation's compact report:
+selected identity, GitHub account and global commit defaults. It suppresses the
+successful global-config notice and returns a handled-selection flag so entry
+does not append verbose hook or permission reports. Manual switching keeps its
+full report. Errors and partial global-config changes remain reported. A sole
+identity gets an explicit selection message, including when already active;
+the latter case retains the existing no-switch/no-write behavior.
+
+Doctor only reads configuration, authentication, tools and hook readiness. Reports
+use shared output helpers; `output::columns` centralizes label padding and
+a fixed absolute value column for headings, rows, changes and form titles, wrapping
+long labels and aligning nested values; every warning continuation and full GitHub auth report
+line receives the common indentation. Raw shell integration and completion output
+remains executable text.
+
+Full authentication reports use a child-only `CLICOLOR_FORCE=1` to preserve
+GitHub CLI's ANSI colors and bold text while capturing both output streams for
+indentation. Styling requires both streams to be color-capable terminals and
+respects `NO_COLOR` and `CLICOLOR=0`; otherwise the child receives `NO_COLOR=1`,
+including when inherited GitHub CLI environment settings force terminal output.
+Other GitHub CLI calls retain their original environment and JSON behavior.
 
 CLI summaries and options are clap attributes. Detailed help is embedded from
 `docs/help/` into both `-h` and `--help`. All interactive forms use cliclack. The
@@ -31,7 +91,7 @@ unconfigured repo blocked. Text inputs and checklists use cliclack intro/outro s
 Forms render on stderr, so `policy::interactive` requires stdin, stdout and stderr
 to be terminals. Noninteractive configuration continues using clap options.
 
-`commands/new.rs` uses cliclack input prompts for missing identity fields, or accepts
+`commands/identity/new.rs` uses cliclack input prompts for missing identity fields, or accepts
 clap options for noninteractive configuration. The heading is Add new identity;
 labels use a colon and space and show the username in the commit-name default.
 Native `default_input` displays and saves the commit-name default on Enter;
@@ -45,7 +105,7 @@ rejected, and edits made during login are detected before replacement.
 GitHub login inherits terminal I/O so browser/device instructions remain visible.
 After saving, the command reuses setup and switch, including their provenance
 comments and output. Errors after saving include recovery guidance and retain the
-identity. Only explicit `--repo` expands repository authorization.
+identity. Creating an identity never expands repository authorization. Use `mgh repo allowed add` or `update` separately.
 
 Status renders each configured identity name above labeled GitHub username,
 commit name, commit email and generated filepath rows. It matches each identity's GitHub username to live
@@ -54,14 +114,13 @@ identities without a login as Not signed in. Unmapped GitHub logins are reported
 separately. Global commit defaults are omitted; repository checks and full
 authentication output remain intact. Welcome maps gh's locally selected login to
 an identity name without a live authentication request, and prints that name
-in parentheses beside the GitHub username. The effective commit email remains
-on its own row.
+in green in the second column of the Identity heading. GitHub username and effective commit email appear on separate labeled rows.
 
 Global mutations use `git::update_global` and its `GlobalConfig` writer to attach
 the originating command and collect a single change notice, including changes
-completed before an error. Successful commands with no global changes print an
+completed before an error. By default, successful commands with no global changes print an
 unchanged confirmation; failed commands with no changes do not. Setup, switch and
-protections-on share this writer. Setup calls its report after the final global
+`mgh repo protections on` share this writer. Setup calls its report after the final global
 write, beside its filepath summary and before mode explanations. The wrapper
 reports at most once and retains partial-change reporting on errors. Setup reads
 the selected global filepath from Git's `--global --no-includes --show-origin`
@@ -96,13 +155,32 @@ Fish entry restores terminal input when the init script is piped into `source`,
 so the identity checklist can still read the keyboard. Explicit `--config` paths
 are resolved without requiring the default home or config directory.
 
+Git has no post-init hook. Interactive shell integration installs a small `git`
+function only when no existing function or alias would be replaced. Ordinary
+commands call Git directly; arguments containing `init` use `internal git`, which
+forwards original arguments and inherited I/O, preserves Git failures, and confirms
+that the actual command was init before doing anything else. Nonterminal calls
+remain passthrough. The initialized target is resolved from Git's global and init
+arguments. A temporary command-scoped shell alias lets Git establish the target
+working directory and propagate command configuration to `internal enter`; the
+alias is not written to any config file. Entry reuses existing permission,
+autoswitch and verbosity behavior. Selection failures do not undo a successful
+initialization. Direct executable calls and existing custom Git wrappers bypass
+this integration.
+
 `config::Identity` holds a configured identity's GitHub username, commit name,
 commit email and allowed emails; `Config::identities` is keyed by identity name.
 Identity names use lowercase keys and identity filenames internally. Lookups,
 allowed-list entries and legacy pins ignore case. Duplicate identity keys differing
-only in case are rejected before Git settings change. The saved Git keys `mgh.account`, `mgh.allowedAccount` and legacy
-`ghguard.account` keep their existing names for compatibility. Their values are
-identity names, not GitHub usernames.
+only in case are rejected before Git settings change. New writes use the local
+Git keys `mgh.allowed-identity` and `mgh.current-identity`; underscores are invalid
+in Git variable names. Repeated allowed keys represent multiple identity names.
+Legacy `mgh.allowedAccount`, `mgh.account` and `ghguard.account` remain readable.
+Entry, setup and repository permission/identity writes migrate old mgh keys,
+preserving repeated values and explicit emptiness, then removing old keys.
+Existing canonical values take precedence over stale old ones, preventing
+removed access from returning. Status, welcome and guard checks stay read-only.
+All these values are identity names, not GitHub usernames.
 
 Configuration is loaded from `identities.jsonc`, with identity names as keys
 and nested `commit.name`, `commit.email` and `commit.additional_emails` fields.
@@ -112,14 +190,14 @@ case-colliding duplicates before values can overwrite them. Explicit parser
 options allow comments and trailing commas, while rejecting other JSON extensions.
 Primary and additional emails are merged into the runtime allowed-email set.
 
-`mgh new` validates the existing configuration and edits its concrete syntax tree
+`mgh identity new` validates the existing configuration and edits its concrete syntax tree
 using `jsonc-parser`'s `cst` feature. This preserves existing comments, field order
 and formatting while appending an identity.
 The pending file is validated before authentication and saved atomically with
 private permissions only if the original file remains unchanged. Failed input or
 login leaves the original bytes unchanged.
 
-Identity configuration guidance is in [Usage](usage.md#identities). The sample config
+Identity configuration guidance is in [Usage](usage.md#global-identities). The sample config
 contains brief user guidance; implementation explanations live here and in the
 [guard documentation](../README.md#how-the-guard-works). Cargo manages Cargo.lock,
 including its generated header. The root .editorconfig defines formatting rules.

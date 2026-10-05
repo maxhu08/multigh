@@ -18,7 +18,7 @@ fn guards_actual_author_committer_and_authentication() {
         "GitHub is using bob",
     );
 
-    sandbox.ok("mgh", &["switch", "personal", "--repo"]);
+    sandbox.ok("mgh", &["switch", "personal"]);
     sandbox.blocked(
         "git",
         &[
@@ -71,7 +71,7 @@ fn guards_actual_author_committer_and_authentication() {
             "Allowed address",
         ],
     );
-    sandbox.ok("mgh", &["check"]);
+    sandbox.ok("mgh", &["repo", "check"]);
 }
 
 #[test]
@@ -114,14 +114,14 @@ fn invalid_repo_pins_and_missing_live_authentication_fail_closed() {
     sandbox.protect();
     sandbox.ok(
         "git",
-        &["config", "--replace-all", "mgh.allowedAccount", "missing"],
+        &["config", "--replace-all", "mgh.allowed-identity", "missing"],
     );
     sandbox.blocked(
         "git",
         &["commit", "--allow-empty", "-m", "Bad policy"],
         "Unknown identity",
     );
-    sandbox.ok("mgh", &["protections", "--allow", "personal"]);
+    sandbox.allow("personal");
     sandbox.write("fail-auth", "");
     sandbox.blocked(
         "git",

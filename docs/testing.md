@@ -30,21 +30,31 @@ tests/
         paths.rs
         validation.rs
     commands/
-        check.rs
+        identity/
+            edit.rs
+            new.rs
+        repo/
+            config.rs
+            allowed.rs
+            check.rs
+            picker.rs
+            protections.rs
+            scope.rs
+        settings/
+            autoswitch.rs
+            verbose.rs
+            welcome.rs
+        shell/
+            completions.rs
+            init.rs
         cli.rs
-        completions.rs
+        doctor.rs
         git_config.rs
         hook.rs
-        init.rs
-        new.rs
         output.rs
-        picker.rs
-        protections.rs
         setup.rs
         status.rs
         switch.rs
-        verbose.rs
-        welcome.rs
     guards/
         commit.rs
         history.rs
@@ -63,6 +73,7 @@ tests/
     shell/
         bash.rs
         fish.rs
+        init.rs
         zsh.rs
     fixtures/
         identities.jsonc
@@ -77,20 +88,25 @@ tests/
 
 | Behavior | Tests |
 | --- | --- |
-| Root help, version, invalid arguments and command help | `commands/cli.rs` |
-| Every completion shell and each supported init shell | `commands/completions.rs`, `commands/init.rs` |
-| cliclack identity form, colon-space prompt labels, displayed commit-name default and override, Esc/Ctrl+C cancellation, existing/browser login, failed or wrong-GitHub-account authentication, private atomic saving, preserved JSONC values, comments and formatting, duplicates and invalid input, config locations, concurrent edits, setup/switch recovery and explicit repository authorization | `commands/new.rs` |
+| Root help, version, every public help form, invalid arguments and rejection of removed commands | `commands/cli.rs` |
+| Every completion shell and each supported init shell | `commands/shell/completions.rs`, `commands/shell/init.rs` |
+| cliclack identity form, colon-space prompt labels, displayed commit-name default and override, Esc/Ctrl+C cancellation, existing/browser login, failed or wrong-GitHub-account authentication, private atomic saving, preserved JSONC values, comments and formatting, duplicates and invalid input, config locations, concurrent edits, setup/switch recovery and separate repository authorization | `commands/identity/new.rs` |
+| Editing and removal, defaults, cancellation, comments and other identity preservation, failed browser login, concurrent edits, symlinks, unknown identities and stale repo permissions | `commands/identity/edit.rs` |
+| Repository-required scope, default-on protections, explicit local exceptions and setup preservation, allowed add/remove with an empty-list block | `commands/repo/scope.rs`, `commands/repo/protections.rs`, `commands/repo/allowed.rs` |
+| Global autoswitch across repositories, single-identity selection notices, compact successful output with verbose on, unchanged manual-switch reports, repeated multi-identity selection, cancellation, nonterminal input, authentication failures and no hook switching | `commands/settings/autoswitch.rs`, `shell/` |
+| Canonical hyphenated repo keys, compatibility reads, repeated-value migration on entry/setup/writes, empty permission lists, stale-key precedence, read-only status/welcome/guards and preserved local exceptions | `commands/repo/config.rs` |
+| Read-only diagnostics, tool/config/authentication/hook failures | `commands/doctor.rs` |
 | Switching, failed authentication changes, global/local commit details and explicit authorization | `commands/switch.rs` |
-| Configured identity names with labeled GitHub usernames, commit names, commit emails and filepaths, identities without a login, green active marker, purple two-line Accounts block, case-insensitive mapping, unmapped GitHub accounts, full authentication output, read-only behavior and errors | `commands/status.rs` |
-| Identity welcome heading and toggle confirmations, case-insensitive identity names aligned in the second column without a separator, green names and purple labels, NO_COLOR/dumb-terminal handling, GitHub usernames below, effective commit email, mismatch warnings and unavailable configuration | `commands/welcome.rs` |
+| Configured identity names with labeled GitHub usernames, commit names, commit emails and filepaths, identities without a login, green active marker, purple two-line Accounts block, case-insensitive mapping, unmapped GitHub accounts, full authentication output with upstream colors/bold text, color opt-outs and redirected streams, read-only behavior and errors | `commands/status.rs` |
+| Identity welcome heading and toggle confirmations, case-insensitive identity names aligned in the second column without a separator, green names and purple labels, NO_COLOR/dumb-terminal handling, GitHub usernames below, effective commit email, mismatch warnings and unavailable configuration | `commands/settings/welcome.rs` |
 | Setup output order and indentation, Identity labels, home/XDG/global config filepaths, mode defaults, private identity files, identity rules, repeated setup, conflicts and symlinks | `commands/setup.rs` |
 | Generated config comments, updated/unchanged notices, changes to identity files, repeated commands, rule removal, partial failures and custom global config paths | `commands/git_config.rs` |
-| Protections on/off, allowed-list replacement, duplicates, invalid selections and missing configuration | `commands/protections.rs` |
-| Independent verbose preferences, entry reports and quiet non-repository entry | `commands/verbose.rs` |
-| Explicit checks regardless of mode, missing authorization and authentication | `commands/check.rs` |
-| Internal commit/push handlers, merge enforcement, native arguments/input and ordinary checkout | `commands/hook.rs` |
-| cliclack checklist selection, saved selections, scrolling, minimum selection, Esc/Ctrl+C cancellation and interactive cloning | `commands/picker.rs` |
-| Output spacing, change highlighting, errors, warnings, form colors/NO_COLOR, dumb terminals, redirected output and rejection of forms with redirected stderr | `commands/output.rs` |
+| Protections on/off, allowed-list replacement, duplicates, invalid selections and missing configuration | `commands/repo/protections.rs` |
+| Independent verbose preferences, entry reports and quiet non-repository entry | `commands/settings/verbose.rs` |
+| Explicit checks regardless of mode, missing authorization and authentication | `commands/repo/check.rs` |
+| Internal hook dispatcher, merge enforcement, native arguments/input and ordinary checkout | `commands/hook.rs` |
+| cliclack checklist selection, saved selections, scrolling, minimum selection, Esc/Ctrl+C cancellation and interactive cloning | `commands/repo/picker.rs` |
+| Shared column alignment, headings without separators, wrapped long labels, change highlighting, errors, warnings, form colors/NO_COLOR, dumb terminals, redirected output and rejection of forms with redirected stderr | `commands/output.rs` |
 | Identity names, legacy pins, malformed JSONC and field types, required/unknown/duplicate nested fields, line/block comments and trailing commas, identity collisions, example configuration and path overrides | `identities/` |
 | JSONC line/block comments, trailing commas, CRLF and indentation preservation, escaped commit names and protection enforcement | `identities/jsonc.rs` |
 | Actual author/committer overrides, allowed emails, authentication and invalid repository policy | `guards/commit.rs` |
@@ -105,6 +121,7 @@ tests/
 | Individual detected-hook paths and skipped inactive hooks | `hooks/reporting.rs` |
 | Real interactive startup, directory changes, startup picker and verbose off in all three shells | `shell/` |
 | Noninteractive shells and preservation of Bash string/array prompt handlers | `shell/` |
+| Git initialization prompts in all three shells, multiple permissions, target/options handling, reinitialization, cancellation, Git failures, command overrides and existing Git functions/aliases | `shell/init.rs` |
 
 These are functional regression tests, not a claim of complete line or branch
 coverage. Assertions check observable outcomes: saved identity policy, commit and
@@ -141,7 +158,7 @@ cargo test --test integration hooks::
 cargo test --test integration shell::
 
 # Show output from a failing interactive test.
-cargo test --test integration commands::picker -- --nocapture
+cargo test --test integration commands::repo::picker -- --nocapture
 ```
 
 Add new tests to the directory that owns the behavior and register new files in

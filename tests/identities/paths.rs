@@ -20,10 +20,11 @@ fn explicit_absolute_and_relative_config_paths_override_the_default() {
     sandbox.ok(
         "mgh",
         &[
-            "protections",
+            "repo",
+            "allowed",
+            "add",
             "--config",
             sandbox.path("repo/other.conf").to_str().unwrap(),
-            "--allow",
             "personal",
         ],
     );
@@ -70,7 +71,11 @@ fn config_and_state_fallbacks_use_an_isolated_userprofile_when_xdg_and_home_are_
 fn absent_config_paths_are_reported_and_config_independent_commands_need_no_home() {
     let sandbox = Sandbox::new();
 
-    sandbox.blocked("mgh", &["--config", "missing.conf", "setup"], "Read ");
+    sandbox.blocked(
+        "mgh",
+        &["--config", "missing.conf", "setup"],
+        "Setup needs your first identity",
+    );
 
     let result = sandbox
         .command("mgh")
@@ -85,8 +90,8 @@ fn absent_config_paths_are_reported_and_config_independent_commands_need_no_home
     assert!(String::from_utf8_lossy(&result.stderr).contains("Cannot locate your home directory"));
 
     for args in [
-        vec!["init", "fish"],
-        vec!["completions", "bash"],
+        vec!["shell", "init", "fish"],
+        vec!["shell", "completions", "bash"],
         vec!["--help"],
     ] {
         let result = sandbox

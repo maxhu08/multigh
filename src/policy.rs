@@ -9,38 +9,79 @@ use std::{
     io::{self, IsTerminal},
 };
 
+pub const ALLOWED: &str = "mgh.allowed-identity";
+pub const CURRENT: &str = "mgh.current-identity";
+
 pub fn repository() -> Result<bool> {
     Ok(git::optional(&["rev-parse", "--git-dir"])?.is_some())
 }
 
-pub fn allowed(config: &Config) -> Result<BTreeSet<String>> {
+pub fn stored() -> Result<BTreeSet<String>> {
     if !repository()? {
         return Ok(BTreeSet::new());
     }
 
-    let explicit = git::optional(&["config", "--local", "--get-all", "mgh.allowedAccount"])?;
+    let values = git::entries(
+        Some("--local"),
+        "^(mgh\\.(allowed-identity|current-identity|allowedaccount|account)|ghguard\\.account)$",
+    )?;
+    let explicit = values
+        .get(ALLOWED)
+        .or_else(|| values.get("mgh.allowedaccount"));
     let mut allowed = BTreeSet::new();
 
     if let Some(values) = explicit {
-        for identity_name in values.lines() {
-            config.identity(identity_name)?;
-            allowed.insert(identity_name.to_ascii_lowercase());
+        for name in values.iter().filter(|value| !value.is_empty()) {
+            allowed.insert(name.to_ascii_lowercase());
         }
     } else {
-        let pinned =
-            git::local("mgh.account")?.map(|identity_name| identity_name.to_ascii_lowercase());
-        let legacy =
-            git::local("ghguard.account")?.map(|identity_name| identity_name.to_ascii_lowercase());
-
+        let pinned = values
+            .get(CURRENT)
+            .or_else(|| values.get("mgh.account"))
+            .and_then(|values| values.last())
+            .map(|name| name.to_ascii_lowercase());
+        let legacy = values
+            .get("ghguard.account")
+            .and_then(|values| values.last())
+            .map(|name| name.to_ascii_lowercase());
         ensure!(
             pinned.is_none() || legacy.is_none() || pinned == legacy,
             "Repository identity settings conflict"
         );
-
-        if let Some(identity_name) = pinned.or(legacy) {
-            config.identity(&identity_name)?;
-            allowed.insert(identity_name);
+        if let Some(name) = pinned.or(legacy) {
+            allowed.insert(name);
         }
+    }
+    Ok(allowed)
+}
+
+pub fn migrate() -> Result<()> {
+    if !repository()? {
+        return Ok(());
+    }
+
+    let legacy = git::entries(Some("--local"), "^mgh\\.(allowedaccount|account)$")?;
+
+    for (old, new) in [("mgh.allowedaccount", ALLOWED), ("mgh.account", CURRENT)] {
+        if let Some(values) = legacy.get(old) {
+            if git::local(new)?.is_none() {
+                for value in values {
+                    git::run(&["config", "--local", "--add", new, value])?;
+                }
+            }
+
+            git::run(&["config", "--local", "--unset-all", old])?;
+        }
+    }
+
+    Ok(())
+}
+
+pub fn allowed(config: &Config) -> Result<BTreeSet<String>> {
+    let allowed = stored()?;
+
+    for name in &allowed {
+        config.identity(name)?;
     }
 
     Ok(allowed)
@@ -49,7 +90,7 @@ pub fn allowed(config: &Config) -> Result<BTreeSet<String>> {
 pub fn active(config: &Config, allowed: &BTreeSet<String>, login: &str) -> Result<String> {
     ensure!(
         !allowed.is_empty(),
-        "No identities are authorized for this repository.\nRun: mgh protections --repo"
+        "No identities are authorized for this repository.\nRun: mgh repo allowed update"
     );
 
     let identity_name = allowed.iter().find(|identity_name| {
@@ -74,13 +115,10 @@ pub fn active(config: &Config, allowed: &BTreeSet<String>, login: &str) -> Resul
 pub fn identity(config: &Config, identity_name: &str) -> Result<()> {
     let identity = config.identity(identity_name)?;
 
+    migrate()?;
     git::set("--local", "user.name", &identity.commit_name)?;
     git::set("--local", "user.email", &identity.commit_email)?;
-    git::set(
-        "--local",
-        "mgh.account",
-        &identity_name.to_ascii_lowercase(),
-    )?;
+    git::set("--local", CURRENT, &identity_name.to_ascii_lowercase())?;
 
     Ok(())
 }
@@ -112,28 +150,29 @@ pub fn authorize(config: &Config, identity_names: &[String]) -> Result<()> {
         })
         .unwrap_or(identity_names.first().unwrap());
 
-    git::run(&[
-        "config",
-        "--local",
-        "--replace-all",
-        "mgh.allowedAccount",
-        identity_names.first().unwrap(),
-    ])?;
-
-    for identity_name in identity_names.iter().skip(1) {
-        git::run(&[
-            "config",
-            "--local",
-            "--add",
-            "mgh.allowedAccount",
-            identity_name,
-        ])?;
-    }
-
+    save(&identity_names)?;
     identity(config, preferred)?;
 
     if git::local("ghguard.account")?.is_some() {
         git::run(&["config", "--local", "--unset-all", "ghguard.account"])?;
+    }
+
+    Ok(())
+}
+
+pub fn save(identity_names: &BTreeSet<String>) -> Result<()> {
+    migrate()?;
+
+    git::run(&[
+        "config",
+        "--local",
+        "--replace-all",
+        ALLOWED,
+        identity_names.first().map(String::as_str).unwrap_or(""),
+    ])?;
+
+    for name in identity_names.iter().skip(1) {
+        git::run(&["config", "--local", "--add", ALLOWED, name])?;
     }
 
     Ok(())
@@ -146,17 +185,13 @@ pub fn interactive() -> bool {
 pub fn choose(config: &Config) -> Result<()> {
     ensure!(
         interactive(),
-        "Identity selection needs an interactive terminal.\nRun: mgh protections --repo\nFor automation: mgh protections --allow personal,school,work"
+        "Identity selection needs an interactive terminal.\nRun: mgh repo allowed update\nFor automation: mgh repo allowed add <identity>"
     );
 
-    let current: BTreeSet<_> =
-        git::optional(&["config", "--local", "--get-all", "mgh.allowedAccount"])?
-            .or(git::local("mgh.account")?)
-            .or(git::local("ghguard.account")?)
-            .unwrap_or_default()
-            .lines()
-            .map(str::to_ascii_lowercase)
-            .collect();
+    let current: Vec<_> = stored()?
+        .into_iter()
+        .filter(|name| config.identities.contains_key(name))
+        .collect();
     let location = git::optional(&["rev-parse", "--show-toplevel"])?.unwrap_or_else(|| {
         std::env::current_dir()
             .unwrap_or_default()
@@ -164,10 +199,10 @@ pub fn choose(config: &Config) -> Result<()> {
             .to_string()
     });
 
-    cliclack::intro(format!("Repository · {location}"))?;
+    cliclack::intro(output::form_heading("Repository", &location))?;
 
     let mut prompt = cliclack::multiselect("Which identities may use this repository?")
-        .initial_values(current.into_iter().collect())
+        .initial_values(current)
         .max_rows(7);
 
     for (identity_name, identity) in &config.identities {
@@ -183,7 +218,7 @@ pub fn choose(config: &Config) -> Result<()> {
 }
 
 pub fn show(config: &Config) -> Result<()> {
-    let allowed = allowed(config)?;
+    let allowed = stored()?;
 
     output::section("Allowed identities");
 
@@ -192,11 +227,14 @@ pub fn show(config: &Config) -> Result<()> {
     }
 
     for identity_name in allowed {
-        output::row(
-            &identity_name,
-            &config.identity(&identity_name)?.username,
-            Color::Value,
-        );
+        match config.identity(&identity_name) {
+            Ok(identity) => output::row(&identity_name, &identity.username, Color::Value),
+            Err(_) => output::row(
+                &identity_name,
+                "Not configured; remove this permission or run mgh repo allowed update",
+                Color::Warning,
+            ),
+        }
     }
 
     println!();

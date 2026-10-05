@@ -1,6 +1,11 @@
 #!/bin/sh
 printf '%s\n' "$*" >> "$TEST_MGH_ROOT/gh-calls"
 
+if [ "$1" = '--version' ]; then
+    printf 'gh version 2.80.0 (test fixture)\n'
+    exit 0
+fi
+
 case "$1 $2" in
     'auth login')
         printf 'GitHub browser login\n'
@@ -21,7 +26,10 @@ case "$1 $2" in
         fi
         ;;
     'auth switch')
-        [ -f "$TEST_MGH_ROOT/fail-switch" ] && exit 1
+        if [ -f "$TEST_MGH_ROOT/fail-switch" ]; then
+            printf 'Unable to switch GitHub account\n' >&2
+            exit 1
+        fi
         while [ "$1" != '--user' ]; do shift; done
         printf '%s\n' "$2" > "$TEST_MGH_ROOT/active"
         ;;
@@ -42,8 +50,23 @@ case "$1 $2" in
                 fi
                 ;;
             *)
+                if [ -f "$TEST_MGH_ROOT/styled-auth-report" ]; then
+                    if [ "$CLICOLOR_FORCE" = 1 ] && [ -z "${NO_COLOR+x}" ]; then
+                        printf '\033[1mAuthentication report\033[0m\n'
+                        printf 'github.com\n  \033[32m✓\033[0m Logged in as \033[1malice\033[0m\n' >&2
+                    else
+                        printf 'Authentication report\n'
+                        printf 'github.com\n  ✓ Logged in as alice\n' >&2
+                    fi
+                    [ -f "$TEST_MGH_ROOT/fail-full" ] && exit 1
+                    exit 0
+                fi
                 [ -f "$TEST_MGH_ROOT/fail-full" ] && exit 1
-                printf 'GitHub authentication details\n'
+                if [ -f "$TEST_MGH_ROOT/full-auth-report" ]; then
+                    cat "$TEST_MGH_ROOT/full-auth-report" >&2
+                else
+                    printf 'GitHub authentication details\n'
+                fi
                 ;;
         esac
         ;;

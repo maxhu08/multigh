@@ -1,0 +1,8 @@
+Details:
+    Generate integration for interactive startup, directory changes and git init,
+    or tab completions. Output is intended for your shell, so it is not indented.
+    These commands do not require identity config or GitHub authentication.
+
+Examples:
+    mgh shell init fish | source
+    mgh shell completions zsh

@@ -1,0 +1,12 @@
+Details:
+    Require a Git repository in the current working directory. With no
+    subcommand, show repo status. All changes in this group apply only here.
+    Protections default ON; explicit OFF persists through setup and restarts.
+    Allowed identities control permission. Global mgh settings autoswitch
+    controls account selection on entry/startup; repo status includes the
+    repository config filepath and global autoswitch state.
+
+Examples:
+    mgh repo
+    mgh repo allowed update
+    mgh repo protections off

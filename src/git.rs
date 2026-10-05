@@ -26,6 +26,15 @@ pub fn local(key: &str) -> Result<Option<String>> {
     optional(&["config", "--local", "--get", key])
 }
 
+pub fn local_path() -> Result<PathBuf> {
+    Ok(PathBuf::from(run(&[
+        "rev-parse",
+        "--path-format=absolute",
+        "--git-common-dir",
+    ])?)
+    .join("config"))
+}
+
 pub fn global(key: &str) -> Result<String> {
     Ok(optional(&["config", "--global", "--get", key])?.unwrap_or_default())
 }
@@ -83,6 +92,10 @@ impl GlobalConfig<'_> {
             "Global Git config unchanged".to_owned()
         });
         println!();
+        self.reported = true;
+    }
+
+    pub fn suppress_report(&mut self) {
         self.reported = true;
     }
 }

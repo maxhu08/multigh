@@ -118,7 +118,7 @@ fn optional_commit_names_custom_identity_names_and_the_complete_example_are_acce
         r#"{"My_Account-2":{"username":"alice","commit":{"email":"alice@example.com","additional_emails":["123+alice@users.noreply.github.com"]}}}"#,
     );
     sandbox.ok("mgh", &["setup"]);
-    sandbox.ok("mgh", &["protections", "--allow", "MY_ACCOUNT-2"]);
+    sandbox.allow("MY_ACCOUNT-2");
 
     assert_eq!(sandbox.ok("git", &["config", "user.name"]).trim(), "alice");
 

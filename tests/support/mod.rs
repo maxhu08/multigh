@@ -161,7 +161,23 @@ impl Sandbox {
 
     pub fn protect(&self) {
         self.ok("mgh", &["setup"]);
-        self.ok("mgh", &["protections", "--allow", "personal"]);
+        self.ok("mgh", &["repo", "allowed", "add", "personal"]);
+    }
+
+    pub fn allow(&self, identities: &str) {
+        self.ok(
+            "git",
+            &[
+                "config",
+                "--local",
+                "--replace-all",
+                "mgh.allowed-identity",
+                "",
+            ],
+        );
+        for name in identities.split(',') {
+            self.ok("mgh", &["repo", "allowed", "add", name]);
+        }
     }
 
     pub fn commit(&self) {

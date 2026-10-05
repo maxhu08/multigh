@@ -1,0 +1,8 @@
+Details:
+    Diagnose Git/GitHub CLI availability, the Git version requirement, identity
+    configuration, active GitHub authentication and installed hook readiness.
+    Print problems together and return failure when checks fail. This command
+    is read-only; setup repairs hooks and identity rules.
+
+Examples:
+    mgh doctor

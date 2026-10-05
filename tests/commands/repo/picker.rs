@@ -9,13 +9,13 @@ fn checklist_selects_multiple_identities_and_reopens_with_saved_selections() {
 
     let global = fs::read(sandbox.path("gitconfig")).unwrap();
     let (status, output) = terminal(
-        sandbox.command("mgh").args(["protections", "--repo"]),
+        sandbox.command("mgh").args(["repo", "allowed", "update"]),
         &[(QUESTION, b" \x1b[B \r")],
     );
 
     assert!(status.success(), "{output}");
     assert_eq!(
-        sandbox.ok("git", &["config", "--get-all", "mgh.allowedAccount"]),
+        sandbox.ok("git", &["config", "--get-all", "mgh.allowed-identity"]),
         "personal\nschool\n"
     );
     assert_eq!(fs::read(sandbox.path("gitconfig")).unwrap(), global);
@@ -25,13 +25,13 @@ fn checklist_selects_multiple_identities_and_reopens_with_saved_selections() {
     );
 
     let (status, output) = terminal(
-        sandbox.command("mgh").args(["protections", "--repo"]),
+        sandbox.command("mgh").args(["repo", "allowed", "update"]),
         &[(QUESTION, b" \r")],
     );
 
     assert!(status.success(), "{output}");
     assert_eq!(
-        sandbox.ok("git", &["config", "--get-all", "mgh.allowedAccount"]),
+        sandbox.ok("git", &["config", "--get-all", "mgh.allowed-identity"]),
         "school\n"
     );
     assert_eq!(
@@ -45,7 +45,7 @@ fn empty_selection_is_rejected_and_cancellation_preserves_policy() {
     let sandbox = Sandbox::new();
 
     let (status, output) = terminal(
-        sandbox.command("mgh").args(["protections", "--repo"]),
+        sandbox.command("mgh").args(["repo", "allowed", "update"]),
         &[(QUESTION, b"\r"), ("Input required", b" \r")],
     );
 
@@ -54,7 +54,7 @@ fn empty_selection_is_rejected_and_cancellation_preserves_policy() {
     let before = fs::read(sandbox.path("repo/.git/config")).unwrap();
     for keys in [b" \x1b".as_slice(), b" \x03".as_slice()] {
         let (status, output) = terminal(
-            sandbox.command("mgh").args(["protections", "--repo"]),
+            sandbox.command("mgh").args(["repo", "allowed", "update"]),
             &[(QUESTION, keys)],
         );
 
@@ -88,14 +88,14 @@ fn checklist_scrolls_through_many_identities_and_saves_the_selected_name() {
     keys.extend_from_slice(b" \r");
 
     let (status, output) = terminal(
-        sandbox.command("mgh").args(["protections", "--repo"]),
+        sandbox.command("mgh").args(["repo", "allowed", "update"]),
         &[(QUESTION, &keys)],
     );
 
     assert!(status.success(), "{output}");
     assert!(output.contains("Allowed identities saved"), "{output}");
     assert_eq!(
-        sandbox.ok("git", &["config", "--get-all", "mgh.allowedAccount"]),
+        sandbox.ok("git", &["config", "--get-all", "mgh.allowed-identity"]),
         "work11\n"
     );
     assert_eq!(
@@ -110,18 +110,21 @@ fn cancelled_entry_keeps_unconfigured_repos_blocked_without_breaking_shell_start
 
     sandbox.ok("mgh", &["setup"]);
 
-    let (status, output) = terminal(sandbox.command("mgh").arg("enter"), &[(QUESTION, b"\x1b")]);
+    let (status, output) = terminal(
+        sandbox.command("mgh").args(["internal", "enter"]),
+        &[(QUESTION, b"\x1b")],
+    );
 
     assert!(status.success(), "{output}");
     assert!(output.contains("commits and pushes remain blocked"));
     assert!(
         !sandbox
-            .run("git", &["config", "--get-all", "mgh.allowedAccount"])
+            .run("git", &["config", "--get-all", "mgh.allowed-identity"])
             .status
             .success()
     );
 
-    sandbox.blocked("mgh", &["check"], "No identities are authorized");
+    sandbox.blocked("mgh", &["repo", "check"], "No identities are authorized");
 }
 
 #[test]
@@ -145,7 +148,7 @@ fn interactive_clone_saves_the_selected_identities_in_the_new_repo() {
                 "../picked",
                 "config",
                 "--get-all",
-                "mgh.allowedAccount"
+                "mgh.allowed-identity"
             ]
         ),
         "personal\nschool\n"
@@ -154,7 +157,7 @@ fn interactive_clone_saves_the_selected_identities_in_the_new_repo() {
     let output = sandbox
         .command("mgh")
         .current_dir(sandbox.path("picked"))
-        .arg("check")
+        .args(["repo", "check"])
         .output()
         .unwrap();
 

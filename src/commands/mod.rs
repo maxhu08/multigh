@@ -1,123 +1,54 @@
+mod doctor;
 pub mod enter;
-mod modes;
-mod new;
+mod identity;
+mod repo;
+mod settings;
+mod setup;
+mod shell;
 mod status;
 mod switch;
-mod welcome;
 
 use crate::{
-    cli::{Cli, Command, Hook, IntegrationShell},
+    cli::{Cli, Command, InternalCommand},
     config::{self, Config},
-    git, guard, hooks, output, settings,
+    hooks,
 };
 use anyhow::Result;
-use clap::CommandFactory;
 
 pub fn run(cli: Cli) -> Result<()> {
-    if let Command::Completions { shell } = cli.command {
-        clap_complete::generate(shell, &mut Cli::command(), "mgh", &mut std::io::stdout());
-
-        return Ok(());
+    if let Command::Shell { command } = cli.command {
+        return shell::run(command);
     }
 
-    if let Command::Init { shell } = cli.command {
-        print!(
-            "{}",
-            match shell {
-                IntegrationShell::Fish => include_str!("../../shell/fish.fish"),
-                IntegrationShell::Bash => include_str!("../../shell/bash.bash"),
-                IntegrationShell::Zsh => include_str!("../../shell/zsh.zsh"),
-            }
-        );
-
-        return Ok(());
+    if let Command::Internal {
+        command: InternalCommand::Git { args },
+    } = cli.command
+    {
+        return shell::git::run(&args, cli.config);
     }
 
     let path = config::path(cli.config)?;
 
     match cli.command {
-        Command::New {
-            identity,
-            username,
-            email,
-            name,
-            repo,
-        } => new::run(path, identity, username, email, name, repo),
-        Command::Welcome { state } => welcome::run(path, state),
-        Command::Protections { state, repo, allow } => modes::protections(path, state, repo, allow),
-        Command::Verbose { state } => modes::verbose(state),
-        Command::Enter => enter::run(path),
-        Command::Hook {
-            kind: Hook::Run { name, args },
-        } => hooks::run(path, &name, &args),
-        Command::Hook { .. } if !settings::enabled("protections")? => Ok(()),
+        Command::Setup => setup::run(path),
         Command::Status { full } => status::run(path, full),
-        command => {
-            let config = Config::load(path)?;
-
-            match command {
-                Command::Switch { identity, repo } => switch::run(&config, &identity, repo),
-
-                Command::Setup => setup(&config),
-
-                Command::Check | Command::Hook { kind: Hook::Commit } => guard::check(&config),
-
-                Command::Hook {
-                    kind: Hook::Push { .. },
-                } => {
-                    use std::io::Read;
-
-                    let mut updates = String::new();
-
-                    std::io::stdin().read_to_string(&mut updates)?;
-                    guard::push(&config, &updates)
-                }
-
-                _ => unreachable!(),
-            }
-        }
+        Command::Switch { identity } => switch::run(&Config::load(path)?, &identity),
+        Command::Doctor => doctor::run(path),
+        Command::Identity { command } => identity::run(path, command),
+        Command::Repo { command } => repo::run(path, command),
+        Command::Settings { command } => settings::run(path, command),
+        Command::Internal {
+            command: InternalCommand::Enter,
+        } => enter::run(path),
+        Command::Internal {
+            command: InternalCommand::Welcome,
+        } => settings::welcome::run(path),
+        Command::Internal {
+            command: InternalCommand::Hook { name, args },
+        } => hooks::run(path, &name, &args),
+        Command::Shell { .. }
+        | Command::Internal {
+            command: InternalCommand::Git { .. },
+        } => unreachable!(),
     }
-}
-
-fn setup(config: &Config) -> Result<()> {
-    git::update_global("mgh setup", |global| {
-        hooks::compatible()?;
-
-        let identity_directory = git::setup_identities(config, global)?;
-
-        hooks::install(config, global)?;
-        settings::set("protections", true)?;
-        settings::set("verbose", true)?;
-
-        output::section("✓ Identity rules updated");
-        output::row(
-            "Accounts",
-            &config.path.to_string_lossy(),
-            output::Color::Muted,
-        );
-        output::row(
-            "Git config",
-            &git::global_path()?.to_string_lossy(),
-            output::Color::Muted,
-        );
-
-        for identity_name in config.identities.keys() {
-            let identity_file = identity_directory.join(format!("git-{identity_name}.conf"));
-
-            output::row(
-                "Identity",
-                &format!("{identity_name} · {}", identity_file.display()),
-                output::Color::Changed,
-            );
-        }
-
-        global.report();
-        modes::report("protections")?;
-        modes::report("verbose")?;
-        println!(
-            "  Load mgh init <fish|bash|zsh> in your shell config for entry prompts and reports.\n"
-        );
-
-        Ok(())
-    })
 }

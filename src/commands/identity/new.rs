@@ -14,12 +14,7 @@ pub fn run(
     username: Option<String>,
     email: Option<String>,
     name: Option<String>,
-    repo: bool,
 ) -> Result<()> {
-    ensure!(
-        !repo || policy::repository()?,
-        "--repo must be run inside a Git repository"
-    );
     ensure!(
         !fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.file_type().is_symlink()),
         "Configuration file is a symlink; use --config with its target: {}",
@@ -120,34 +115,33 @@ pub fn run(
     ensure!(
         current == original
             && !fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.file_type().is_symlink()),
-        "Configuration changed while signing in; run mgh new again"
+        "Configuration changed while signing in; run mgh identity new again"
     );
 
     git::private(pending.path(), false)?;
     pending.persist(&path)?;
     config.path = path;
 
-    output::section(&format!("✓ Identity added · {}", identity_name));
+    output::heading("✓ Identity added", &identity_name, output::Color::Changed);
     output::row(
         "Accounts",
         &config.path.to_string_lossy(),
         output::Color::Changed,
     );
 
-    super::setup(&config)
-        .and_then(|()| super::switch::run(&config, &identity_name, repo))
+    super::super::setup::refresh(&config)
+        .and_then(|()| super::super::switch::run(&config, &identity_name))
         .with_context(|| {
             let config_option = format!("--config {}", process::quote(&config.path.to_string_lossy()));
 
             format!(
-                "Identity saved in {}. After fixing the problem, run mgh {config_option} setup and mgh {config_option} switch {identity_name}{}",
+                "Identity saved in {}. After fixing the problem, run mgh {config_option} setup and mgh {config_option} switch {identity_name}",
                 config.path.display(),
-                if repo { " --repo" } else { "" }
             )
         })
 }
 
-fn field(value: Option<String>, label: &str, default: Option<&str>) -> Result<String> {
+pub(super) fn field(value: Option<String>, label: &str, default: Option<&str>) -> Result<String> {
     if let Some(value) = value {
         return Ok(value.trim().to_owned());
     }

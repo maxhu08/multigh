@@ -1,15 +1,10 @@
 Details:
-    on prints the current repository's allowed identities whenever you enter it
-    or start an interactive terminal in it. off suppresses those entry reports.
-    With no arguments, show the saved preference. Requires mgh shell
-    integration. Existing hooks are listed individually with their paths;
-    inactive hooks are marked as skipped. Husky reports actual project scripts,
-    not empty wrappers. When protections pass verification, a generic
-    confirmation says that identity protections are active and existing checks
-    are preserved. This controls output independently of whether protections are
-    enabled.
+    Control allowed-identity and existing-hook information on repo entry and
+    interactive terminal startup across all repos. Requires shell integration.
+    With no state, report the global preference. off suppresses informational
+    reports; protection problems and autoswitch prompts remain visible.
+    Successful autoswitch omits subsequent verbose reports to keep its result brief.
 
 Examples:
-    mgh verbose on
-    mgh verbose off
-    mgh verbose
+    mgh settings verbose on
+    mgh settings verbose off

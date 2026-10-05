@@ -90,7 +90,7 @@ fn entry_repairs_reset_hook_paths_from_subdirectories() {
         let output = sandbox
             .command("mgh")
             .current_dir(sandbox.path("repo/subdir"))
-            .arg("enter")
+            .args(["internal", "enter"])
             .output()
             .unwrap();
 
@@ -113,12 +113,12 @@ fn entry_repairs_reset_hook_paths_from_subdirectories() {
         );
     }
 
-    sandbox.ok("mgh", &["protections", "off"]);
+    sandbox.ok("mgh", &["repo", "protections", "off"]);
     sandbox.ok(
         "git",
         &["config", "--local", "core.hooksPath", "checks with spaces"],
     );
-    sandbox.ok("mgh", &["enter"]);
+    sandbox.ok("mgh", &["internal", "enter"]);
 
     assert_eq!(
         sandbox
@@ -127,7 +127,7 @@ fn entry_repairs_reset_hook_paths_from_subdirectories() {
         "checks with spaces"
     );
 
-    sandbox.ok("mgh", &["protections", "on"]);
+    sandbox.ok("mgh", &["repo", "protections", "on"]);
     sandbox.blocked(
         "git",
         &["commit", "--allow-empty", "-m", "Re-enabled"],

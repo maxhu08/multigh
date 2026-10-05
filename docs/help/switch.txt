@@ -1,20 +1,11 @@
 Details:
-    Select an existing gh login, update global Git user.name and user.email, and
-    refresh identity rules for repositories owned by the identities' GitHub
-    accounts. Sign in with gh auth login first, or use mgh new to add and select
-    an identity. Identity names are case insensitive. New or changed global
-    settings and generated identity files carry a comment naming this switch
-    command. Report global changes once; matching global values and their
-    existing comments stay untouched. Requires Git 2.45 or newer. If successful
-    without global changes, print Global Git config unchanged.
-
-    If this identity is allowed in the current repo, also update its local
-    commit details. --repo explicitly adds the identity to this repo's allowed
-    list and selects it. Other repos retain their local commit details. This
-    does not enable protections; use setup or protections on to do that.
+    Select a case-insensitive global identity, switch gh authentication and update
+    global commit defaults. Inside a repo that allows the identity, also update
+    local commit details. Permissions remain unchanged; use repo allowed add
+    separately. Global changes are reported and annotated with this command.
+    The active gh account is shared across terminals.
 
 Examples:
     mgh switch personal
-    mgh switch school
+    mgh repo allowed add work
     mgh switch work
-    mgh switch personal --repo

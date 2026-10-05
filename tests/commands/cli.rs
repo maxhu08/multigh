@@ -1,54 +1,23 @@
 use crate::support::Sandbox;
 
 #[test]
-fn root_help_lists_commands_without_examples_or_internal_handlers() {
+fn root_help_shows_only_the_redesigned_public_commands() {
     let sandbox = Sandbox::new();
-
-    for args in [vec![], vec!["-h"], vec!["--help"]] {
-        let result = sandbox.run("mgh", &args);
-        let text = format!(
-            "{}{}",
-            String::from_utf8_lossy(&result.stdout),
-            String::from_utf8_lossy(&result.stderr)
-        );
-
-        assert!(text.contains("Usage:") && text.contains("Commands:"));
-        assert!(text.contains("An identity is a configured identity name"));
+    let help = sandbox.ok("mgh", &["--help"]);
+    for command in [
+        "setup", "status", "switch", "doctor", "identity", "repo", "settings", "shell",
+    ] {
         assert!(
-            text.split_whitespace()
-                .collect::<Vec<_>>()
-                .join(" ")
-                .contains("Personal, PERSONAL and personal are equivalent")
+            help.lines()
+                .any(|line| line.trim_start().starts_with(&format!("{command} "))),
+            "{help}"
         );
-
-        for command in [
-            "new",
-            "switch",
-            "status",
-            "welcome",
-            "setup",
-            "protections",
-            "verbose",
-            "init",
-            "check",
-            "completions",
-        ] {
-            assert!(
-                text.lines()
-                    .any(|line| line.trim_start().starts_with(command))
-            );
-        }
-
-        assert!(!text.contains("Examples:") && !text.contains(" protect "));
-        assert!(
-            !text
-                .lines()
-                .any(|line| line.trim_start().starts_with("enter ")
-                    || line.trim_start().starts_with("hook "))
-        );
-        assert_eq!(result.status.success(), !args.is_empty());
     }
-
+    assert!(
+        !help
+            .lines()
+            .any(|line| line.trim_start().starts_with("internal "))
+    );
     assert_eq!(
         sandbox.ok("mgh", &["--version"]).trim(),
         concat!("mgh ", env!("CARGO_PKG_VERSION"))
@@ -56,70 +25,87 @@ fn root_help_lists_commands_without_examples_or_internal_handlers() {
 }
 
 #[test]
-fn every_command_supports_detailed_help() {
+fn every_public_command_has_consistent_short_long_and_help_forms() {
     let sandbox = Sandbox::new();
-
     for command in [
-        "new",
-        "switch",
-        "status",
-        "welcome",
-        "setup",
-        "protections",
-        "verbose",
-        "init",
-        "check",
-        "completions",
-        "hook",
+        vec!["setup"],
+        vec!["status"],
+        vec!["switch"],
+        vec!["doctor"],
+        vec!["identity"],
+        vec!["identity", "list"],
+        vec!["identity", "new"],
+        vec!["identity", "edit"],
+        vec!["identity", "remove"],
+        vec!["repo"],
+        vec!["repo", "status"],
+        vec!["repo", "check"],
+        vec!["repo", "protections"],
+        vec!["settings", "autoswitch"],
+        vec!["repo", "allowed"],
+        vec!["repo", "allowed", "list"],
+        vec!["repo", "allowed", "add"],
+        vec!["repo", "allowed", "remove"],
+        vec!["repo", "allowed", "update"],
+        vec!["settings"],
+        vec!["settings", "verbose"],
+        vec!["settings", "welcome"],
+        vec!["shell"],
+        vec!["shell", "init"],
+        vec!["shell", "completions"],
     ] {
-        let short = sandbox.ok("mgh", &[command, "-h"]);
-
-        assert_eq!(short, sandbox.ok("mgh", &[command, "--help"]));
-        assert_eq!(short, sandbox.ok("mgh", &["help", command]));
-        assert!(
-            short.contains("Details:") && short.contains("Usage:"),
-            "{command}"
-        );
-    }
-
-    let help = sandbox.ok("mgh", &["protections", "-h"]);
-
-    assert!(help.contains("personal,school,work"));
-    assert!(!help.contains("personal,school\n"));
-
-    for command in ["new", "switch"] {
-        let help = sandbox.ok("mgh", &[command, "-h"]);
-
-        assert!(help.contains("IDENTITY"), "{help}");
-        assert!(
-            help.contains("case insensitive") || help.contains("case-insensitive"),
-            "{help}"
-        );
-        assert!(
-            !help.contains("ACCOUNT") && !help.contains("account alias"),
-            "{help}"
-        );
+        let mut short = command.clone();
+        short.push("-h");
+        let mut long = command.clone();
+        long.push("--help");
+        let mut help = vec!["help"];
+        help.extend(command);
+        let output = sandbox.ok("mgh", &short);
+        assert_eq!(output, sandbox.ok("mgh", &long));
+        assert_eq!(output, sandbox.ok("mgh", &help));
+        assert!(output.contains("Usage:"));
     }
 }
 
 #[test]
-fn invalid_commands_arguments_and_conflicting_options_are_rejected() {
+fn removed_commands_and_invalid_arguments_are_rejected() {
     let sandbox = Sandbox::new();
+    for command in [
+        "new",
+        "protect",
+        "protections",
+        "verbose",
+        "welcome",
+        "init",
+        "check",
+        "completions",
+        "enter",
+        "hook",
+    ] {
+        sandbox.blocked("mgh", &[command], "unrecognized subcommand");
+    }
+    sandbox.blocked(
+        "mgh",
+        &["repo", "autoswitch", "on"],
+        "unrecognized subcommand",
+    );
 
     for args in [
-        vec!["protect", "personal"],
+        vec!["switch", "personal", "--repo"],
+        vec!["identity", "new", "--repo"],
+        vec!["repo", "allowed", "update", "personal"],
+        vec!["repo", "protections", "maybe"],
+        vec!["settings", "autoswitch", "maybe"],
+        vec!["settings", "verbose", "maybe"],
+        vec!["settings", "welcome", "maybe"],
+        vec!["shell", "init", "unknown"],
+        vec!["shell", "completions", "unknown"],
         vec!["switch"],
-        vec!["welcome", "maybe"],
-        vec!["verbose", "maybe"],
-        vec!["protections", "maybe"],
-        vec!["protections", "on", "--repo"],
-        vec!["protections", "off", "--allow", "personal"],
-        vec!["protections", "--repo", "--allow", "personal"],
-        vec!["protections", "--allow"],
-        vec!["init", "unknown"],
-        vec!["completions", "unknown"],
+        vec!["repo", "allowed", "add"],
+        vec!["identity", "remove"],
+        vec!["identity", "edit"],
+        vec!["internal", "hook"],
         vec!["status", "--unknown"],
-        vec!["hook", "push"],
     ] {
         sandbox.blocked("mgh", &args, "error:");
     }

@@ -23,7 +23,9 @@ fn legacy_guards_migrate_and_missing_config_fails_closed() {
             .success()
     );
     assert_eq!(
-        sandbox.ok("git", &["config", "mgh.account"]).trim(),
+        sandbox
+            .ok("git", &["config", "mgh.current-identity"])
+            .trim(),
         "personal"
     );
 
@@ -41,5 +43,5 @@ fn legacy_guards_migrate_and_missing_config_fails_closed() {
         "identities.jsonc",
     );
     sandbox.ok("mgh", &["--help"]);
-    sandbox.ok("mgh", &["completions", "fish"]);
+    sandbox.ok("mgh", &["shell", "completions", "fish"]);
 }

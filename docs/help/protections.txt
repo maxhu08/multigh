@@ -1,36 +1,13 @@
 Details:
-    on installs shared Git hooks and enables enforcement across local repos. off
-    skips mgh enforcement, preserving allowed selections and original hooks. No
-    arguments shows the mode and this repo's allowed identities. on reports
-    changes to the global hook setting and labels that entry with a generated-by
-    comment naming mgh protections on. An already matching setting stays
-    untouched. Requires Git 2.45 or newer for generated config comments. If on
-    succeeds without global changes, print Global Git config unchanged.
-
-    --repo opens a cliclack checklist: arrows move, Space selects/deselects,
-    Enter saves at least one identity, Esc or Ctrl+C cancels. Saved selections
-    start checked; long lists scroll through seven visible identities at a time.
-    Empty selection shows Input required. Forms render on stderr and need
-    terminal input, stdout and stderr. --allow replaces the list directly
-    without a form. Normal Git clones prompt after checkout. Shell integration
-    prompts on entry or startup in an unconfigured repo. Commits and pushes
-    remain blocked until identities are selected. Noninteractive, bare, empty or
-    --no-checkout clones may need selection later; Git-hook-bypassing clients
-    cannot be intercepted.
-
-    Allowed identities are local Git config entries. Hooks check live gh auth
-    and actual commit details; push checks also reject your other configured
-    identities' outgoing commits. Other collaborators are allowed. Repo-specific
-    local and worktree hook paths are automatically chained on entry; on repairs
-    the current repo. Original hooks still run when protections are off. A tool
-    resetting its hooks path requires re-entry or protections on before checks
-    apply again. Active status requires the effective path and all managed hooks
-    to pass verification. Missing, non-executable or changed hooks are reported.
-    Global and command overrides need manual integration. --no-verify can bypass
-    these local safeguards.
+    Show or toggle protections only for this repo. Default ON when no local
+    preference is saved. off saves an explicit exception; on restores enforcement
+    and installs or repairs shared hooks. Setup preserves explicit OFF.
+    With protections on, commits and pushes require an allowed gh account and
+    matching commit details. An empty allowed list blocks both operations.
+    Existing project hooks continue running when mgh protections are off.
+    Local Git hooks can be bypassed by clients that do not run them.
 
 Examples:
-    mgh protections on
-    mgh protections off
-    mgh protections --repo
-    mgh protections --allow personal,school,work
+    mgh repo protections
+    mgh repo protections off
+    mgh repo protections on

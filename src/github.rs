@@ -1,6 +1,20 @@
-use crate::{config::Identity, process};
+use crate::{config::Identity, output, process};
 use anyhow::{Result, ensure};
 use serde_json::Value;
+use std::{env, process::Output};
+
+pub fn report() -> Result<Output> {
+    let styled = output::color_enabled(false)
+        && output::color_enabled(true)
+        && !env::var("CLICOLOR").is_ok_and(|value| value == "0");
+    let preference = if styled {
+        ("CLICOLOR_FORCE", "1")
+    } else {
+        ("NO_COLOR", "1")
+    };
+
+    process::capture_with_env("gh", &["auth", "status"], &[preference])
+}
 
 pub fn active() -> Result<String> {
     process::run(

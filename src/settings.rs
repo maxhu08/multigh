@@ -24,3 +24,14 @@ pub fn set(name: &str, enabled: bool) -> Result<()> {
 
     Ok(())
 }
+
+pub fn repo_enabled(key: &str, default: bool) -> Result<bool> {
+    if git::local(key)?.is_none() {
+        return Ok(default);
+    }
+    Ok(git::run(&["config", "--local", "--type=bool", "--get", key])? == "true")
+}
+
+pub fn protections() -> Result<bool> {
+    repo_enabled("mgh.protections", true)
+}

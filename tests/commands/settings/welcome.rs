@@ -10,12 +10,13 @@ fn welcome_aligns_identity_with_values_without_a_separator() {
         r#"{"PeRsOnAl": {"username": "alice", "commit": {"email": "alice@example.com"}}}"#,
     );
     sandbox.write("selected", "ALICE\n");
-    sandbox.ok("mgh", &["welcome", "on"]);
+    sandbox.ok("mgh", &["settings", "welcome", "on"]);
 
-    let output = sandbox.ok("mgh", &["welcome"]);
+    let output = sandbox.ok("mgh", &["internal", "welcome"]);
 
     assert!(
-        output.contains("Identity         personal\n  GitHub username  ALICE"),
+        output
+            .contains("Identity                    personal\n  GitHub username             ALICE"),
         "{output}"
     );
     let heading = output
@@ -50,23 +51,23 @@ fn welcome_preferences_work_without_config_and_do_not_modify_git_or_auth() {
 
     fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
 
-    assert!(sandbox.ok("mgh", &["welcome"]).is_empty());
+    assert!(sandbox.ok("mgh", &["internal", "welcome"]).is_empty());
 
     assert_eq!(
-        sandbox.ok("mgh", &["welcome", "on"]),
-        "\n  ✓ Identity welcome enabled\n\n"
+        sandbox.ok("mgh", &["settings", "welcome", "on"]),
+        "  Welcome                     ON\n  Show the active identity in the terminal greeting.\n\n"
     );
 
     assert!(sandbox.path("state/multigh/welcome-enabled").is_file());
     assert!(!sandbox.path("gh-calls").exists());
 
     assert_eq!(
-        sandbox.ok("mgh", &["welcome", "off"]),
-        "\n  ✓ Identity welcome disabled\n\n"
+        sandbox.ok("mgh", &["settings", "welcome", "off"]),
+        "  Welcome                     OFF\n  Show the active identity in the terminal greeting.\n\n"
     );
-    sandbox.ok("mgh", &["welcome", "off"]);
+    sandbox.ok("mgh", &["settings", "welcome", "off"]);
 
-    assert!(sandbox.ok("mgh", &["welcome"]).is_empty());
+    assert!(sandbox.ok("mgh", &["internal", "welcome"]).is_empty());
     assert_eq!(before, fs::read(sandbox.path("gitconfig")).unwrap());
 }
 
@@ -75,14 +76,14 @@ fn welcome_uses_local_selection_and_reports_repo_or_identity_mismatches() {
     let sandbox = Sandbox::new();
 
     sandbox.protect();
-    sandbox.ok("mgh", &["welcome", "on"]);
+    sandbox.ok("mgh", &["settings", "welcome", "on"]);
     sandbox.write("selected", "bob\n");
     fs::remove_file(sandbox.path("gh-calls")).unwrap();
 
-    let text = sandbox.ok("mgh", &["welcome"]);
+    let text = sandbox.ok("mgh", &["internal", "welcome"]);
 
-    assert!(text.starts_with("\n  Identity         school\n"));
-    assert!(text.contains("GitHub username  bob"));
+    assert!(text.starts_with("\n  Identity                    school\n"));
+    assert!(text.contains("GitHub username             bob"));
     assert!(text.contains("mgh switch personal"));
     assert!(!text.contains("~~~"));
 
@@ -95,7 +96,7 @@ fn welcome_uses_local_selection_and_reports_repo_or_identity_mismatches() {
 
     assert!(
         sandbox
-            .ok("mgh", &["welcome"])
+            .ok("mgh", &["internal", "welcome"])
             .contains("Commit details need: mgh switch personal")
     );
 
@@ -112,7 +113,7 @@ fn welcome_uses_local_selection_and_reports_repo_or_identity_mismatches() {
 
     assert!(
         !sandbox
-            .ok("mgh", &["welcome"])
+            .ok("mgh", &["internal", "welcome"])
             .contains("Commit details need:")
     );
 }
@@ -122,23 +123,29 @@ fn welcome_handles_unavailable_selection_and_missing_config_without_breaking_sta
     let sandbox = Sandbox::new();
 
     sandbox.protect();
-    sandbox.ok("mgh", &["welcome", "on"]);
+    sandbox.ok("mgh", &["settings", "welcome", "on"]);
     sandbox.write("fail-selected", "");
 
-    assert!(sandbox.ok("mgh", &["welcome"]).contains("unavailable"));
+    assert!(
+        sandbox
+            .ok("mgh", &["internal", "welcome"])
+            .contains("unavailable")
+    );
 
     fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
 
-    let welcome = sandbox.ok("mgh", &["welcome"]);
+    let welcome = sandbox.ok("mgh", &["internal", "welcome"]);
 
-    assert!(welcome.contains("GitHub username  unavailable") && welcome.contains("Read "));
+    assert!(
+        welcome.contains("GitHub username             unavailable") && welcome.contains("Read ")
+    );
 }
 
 #[test]
 fn welcome_identity_is_green_and_label_is_purple_only_on_color_capable_terminals() {
     let sandbox = Sandbox::new();
 
-    sandbox.ok("mgh", &["welcome", "on"]);
+    sandbox.ok("mgh", &["settings", "welcome", "on"]);
 
     for mode in ["color", "no-color", "dumb"] {
         let mut command = sandbox.command("mgh");
@@ -153,13 +160,13 @@ fn welcome_identity_is_green_and_label_is_purple_only_on_color_capable_terminals
             command.env("TERM", "dumb");
         }
 
-        let (status, output) = terminal(command.arg("welcome"), &[]);
+        let (status, output) = terminal(command.args(["internal", "welcome"]), &[]);
 
         assert!(status.success(), "{output}");
 
         if mode == "color" {
             assert!(
-                output.contains("\x1b[1;38;2;192;132;252mIdentity         "),
+                output.contains("\x1b[1;38;2;192;132;252mIdentity\x1b[0m"),
                 "{output}"
             );
             assert!(
@@ -167,7 +174,10 @@ fn welcome_identity_is_green_and_label_is_purple_only_on_color_capable_terminals
                 "{output}"
             );
         } else {
-            assert!(output.contains("Identity         personal\r\n"), "{output}");
+            assert!(
+                output.contains("Identity                    personal\r\n"),
+                "{output}"
+            );
             assert!(!output.contains("\x1b["), "{output}");
         }
     }

@@ -1,0 +1,12 @@
+Details:
+    Show global preferences with no subcommand. autoswitch selects an allowed
+    identity on repo entry/startup; verbose controls allowed-identity
+    and detected-hook entry reports; welcome controls the terminal greeting.
+    Toggle each independently with on/off; omit state to show its preference.
+    These settings do not disable repo protections or change permissions.
+
+Examples:
+    mgh settings
+    mgh settings autoswitch on
+    mgh settings verbose off
+    mgh settings welcome on

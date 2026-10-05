@@ -35,7 +35,7 @@ fn worktree_hook_overrides_are_preserved_without_affecting_other_worktrees() {
         .success()
     );
 
-    let entry = run("mgh", &["enter"], true);
+    let entry = run("mgh", &["internal", "enter"], true);
 
     assert!(
         entry.status.success(),

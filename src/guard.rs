@@ -17,7 +17,7 @@ pub fn commit_details(identity_name: &str, identity: &Identity) -> Result<()> {
                 && identity
                     .allowed_emails
                     .contains(&email.to_ascii_lowercase())),
-            "{kind} commit details do not match identity [{identity_name}]: {value}\nRun: mgh switch {identity_name} --repo\nWhen amending an old commit, also use --reset-author."
+            "{kind} commit details do not match identity [{identity_name}]: {value}\nRun: mgh switch {identity_name}\nWhen amending an old commit, also use --reset-author."
         );
     }
 

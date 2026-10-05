@@ -9,14 +9,11 @@ fn multiple_allowed_identities_work_and_switching_updates_the_local_identity() {
     identities["work"] = serde_json::json!({"username": "carol", "commit": {"name": "Carol Example", "email": "carol@example.com"}});
     sandbox.write("config/multigh/identities.jsonc", &identities.to_string());
     sandbox.ok("mgh", &["setup"]);
-    sandbox.ok(
-        "mgh",
-        &["protections", "--allow", "PERSONAL,school,Personal"],
-    );
+    sandbox.allow("PERSONAL,school,Personal");
 
     assert_eq!(
         sandbox
-            .ok("git", &["config", "--get-all", "mgh.allowedAccount"])
+            .ok("git", &["config", "--get-all", "mgh.allowed-identity"])
             .trim(),
         "personal\nschool"
     );
@@ -63,33 +60,30 @@ fn multiple_allowed_identities_work_and_switching_updates_the_local_identity() {
 fn protections_reports_status_and_replaces_allowed_identities_without_duplicates() {
     let sandbox = Sandbox::new();
 
-    let initial = sandbox.ok("mgh", &["protections"]);
+    let initial = sandbox.ok("mgh", &["repo", "protections"]);
 
-    assert!(initial.contains("OFF") && initial.contains("No identities selected"));
+    assert!(initial.contains("ON"));
 
     sandbox.protect();
-    sandbox.ok(
-        "mgh",
-        &["protections", "--allow", "PERSONAL,School,personal"],
-    );
+    sandbox.allow("PERSONAL,School,personal");
 
     assert_eq!(
         sandbox
             .ok(
                 "git",
-                &["config", "--local", "--get-all", "mgh.allowedAccount"]
+                &["config", "--local", "--get-all", "mgh.allowed-identity"]
             )
             .trim(),
         "personal\nschool"
     );
 
-    sandbox.ok("mgh", &["protections", "--allow", "SCHOOL"]);
+    sandbox.allow("SCHOOL");
 
     assert_eq!(
         sandbox
             .ok(
                 "git",
-                &["config", "--local", "--get-all", "mgh.allowedAccount"]
+                &["config", "--local", "--get-all", "mgh.allowed-identity"]
             )
             .trim(),
         "school"
@@ -101,14 +95,20 @@ fn protections_reports_status_and_replaces_allowed_identities_without_duplicates
         "bob@example.edu"
     );
 
-    let mode = sandbox.ok("mgh", &["protections"]);
+    let mode = sandbox.ok("mgh", &["repo", "protections"]);
 
-    assert!(mode.contains("ON") && mode.contains("school") && mode.contains("bob"));
+    assert!(mode.contains("ON"));
+    assert!(sandbox.ok("mgh", &["repo", "allowed"]).contains("school"));
 
-    sandbox.ok("mgh", &["protections", "off"]);
-    sandbox.ok("mgh", &["protections", "on"]);
+    sandbox.ok("mgh", &["repo", "protections", "off"]);
+    sandbox.ok("mgh", &["repo", "protections", "on"]);
 
-    assert!(sandbox.path("state/multigh/protections-enabled").is_file());
+    assert_eq!(
+        sandbox
+            .ok("git", &["config", "--local", "mgh.protections"])
+            .trim(),
+        "true"
+    );
 }
 
 #[test]
@@ -121,7 +121,7 @@ fn invalid_authorization_does_not_change_the_existing_repo_policy() {
 
     sandbox.blocked(
         "mgh",
-        &["protections", "--allow", "personal,unknown"],
+        &["repo", "allowed", "add", "unknown"],
         "Unknown identity",
     );
 
@@ -133,7 +133,7 @@ fn invalid_authorization_does_not_change_the_existing_repo_policy() {
     let outside = sandbox
         .command("mgh")
         .current_dir(sandbox.path(""))
-        .args(["protections", "--allow", "personal"])
+        .args(["repo", "allowed", "add", "personal"])
         .output()
         .unwrap();
 
@@ -143,7 +143,11 @@ fn invalid_authorization_does_not_change_the_existing_repo_policy() {
         std::fs::read(sandbox.path("repo/.git/config")).unwrap()
     );
 
-    sandbox.blocked("mgh", &["protections", "--repo"], "interactive terminal");
+    sandbox.blocked(
+        "mgh",
+        &["repo", "allowed", "update"],
+        "interactive terminal",
+    );
 
     assert_eq!(
         before,
@@ -157,7 +161,7 @@ fn off_modes_work_with_missing_config_and_unconfigured_entry_still_blocks_commit
 
     sandbox.ok("mgh", &["setup"]);
 
-    let entry = sandbox.ok("mgh", &["enter"]);
+    let entry = sandbox.ok("mgh", &["internal", "enter"]);
 
     assert!(entry.contains("No identities selected; commits and pushes remain blocked."));
 
@@ -167,13 +171,42 @@ fn off_modes_work_with_missing_config_and_unconfigured_entry_still_blocks_commit
         "No identities are authorized",
     );
     std::fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
-    sandbox.ok("mgh", &["protections", "off"]);
-    sandbox.ok("mgh", &["verbose", "off"]);
+    sandbox.ok("mgh", &["repo", "protections", "off"]);
+    sandbox.ok("mgh", &["settings", "verbose", "off"]);
 
-    assert!(sandbox.ok("mgh", &["enter"]).is_empty());
+    assert!(sandbox.ok("mgh", &["internal", "enter"]).is_empty());
 
     sandbox.commit();
-    sandbox.blocked("mgh", &["protections", "on"], "Read ");
+    sandbox.blocked("mgh", &["repo", "protections", "on"], "Read ");
 
     assert!(!sandbox.path("state/multigh/protections-enabled").exists());
+}
+
+#[test]
+fn repo_protections_default_on_and_off_is_local_and_survives_setup() {
+    let sandbox = Sandbox::new();
+    assert!(sandbox.ok("mgh", &["repo", "protections"]).contains("ON"));
+    sandbox.protect();
+    sandbox.ok("mgh", &["repo", "protections", "off"]);
+    sandbox.ok("mgh", &["settings", "verbose", "off"]);
+    sandbox.ok("mgh", &["setup"]);
+    assert!(sandbox.ok("mgh", &["repo", "protections"]).contains("OFF"));
+    assert!(sandbox.ok("mgh", &["settings", "verbose"]).contains("OFF"));
+    sandbox.write("active", "bob\n");
+    sandbox.commit();
+    sandbox.ok("git", &["init", "../other"]);
+    let other = sandbox
+        .command("mgh")
+        .current_dir(sandbox.path("other"))
+        .args(["repo", "protections"])
+        .output()
+        .unwrap();
+    assert!(other.status.success());
+    assert!(String::from_utf8_lossy(&other.stdout).contains("ON"));
+    sandbox.ok("mgh", &["repo", "protections", "on"]);
+    sandbox.blocked(
+        "git",
+        &["commit", "--allow-empty", "-m", "Blocked"],
+        "GitHub is using bob",
+    );
 }

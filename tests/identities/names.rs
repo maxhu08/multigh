@@ -20,10 +20,12 @@ fn mixed_case_identity_names_work_in_commands_and_repository_pins() {
             .is_file()
     );
 
-    sandbox.ok("mgh", &["protections", "--allow", "PERSONAL"]);
+    sandbox.allow("PERSONAL");
 
     assert_eq!(
-        sandbox.ok("git", &["config", "mgh.account"]).trim(),
+        sandbox
+            .ok("git", &["config", "mgh.current-identity"])
+            .trim(),
         "personal"
     );
 
@@ -33,12 +35,12 @@ fn mixed_case_identity_names_work_in_commands_and_repository_pins() {
         &["commit", "--allow-empty", "-m", "Wrong account"],
         "GitHub is using bob",
     );
-    sandbox.ok("mgh", &["switch", "pErSoNaL", "--repo"]);
+    sandbox.ok("mgh", &["switch", "pErSoNaL"]);
     sandbox.commit();
 
-    sandbox.ok("git", &["config", "mgh.account", "Personal"]);
+    sandbox.ok("git", &["config", "mgh.current-identity", "Personal"]);
     sandbox.ok("git", &["config", "ghguard.account", "PERSONAL"]);
-    sandbox.ok("mgh", &["check"]);
+    sandbox.ok("mgh", &["repo", "check"]);
 
     assert!(
         sandbox
@@ -46,9 +48,9 @@ fn mixed_case_identity_names_work_in_commands_and_repository_pins() {
             .contains("Identity and commit details match")
     );
 
-    sandbox.ok("mgh", &["welcome", "on"]);
+    sandbox.ok("mgh", &["settings", "welcome", "on"]);
 
-    let welcome = sandbox.ok("mgh", &["welcome"]);
+    let welcome = sandbox.ok("mgh", &["internal", "welcome"]);
 
     assert!(!welcome.contains("conflict") && !welcome.contains("needs:"));
 
@@ -56,20 +58,20 @@ fn mixed_case_identity_names_work_in_commands_and_repository_pins() {
 
     assert!(
         sandbox
-            .ok("mgh", &["welcome"])
+            .ok("mgh", &["internal", "welcome"])
             .to_ascii_lowercase()
             .contains("mgh switch personal")
     );
 
     sandbox.write("active", "alice\n");
 
-    sandbox.ok("git", &["config", "--unset-all", "mgh.allowedAccount"]);
+    sandbox.ok("git", &["config", "--unset-all", "mgh.allowed-identity"]);
     sandbox.ok("git", &["config", "ghguard.account", "SCHOOL"]);
-    sandbox.blocked("mgh", &["check"], "settings conflict");
+    sandbox.blocked("mgh", &["repo", "check"], "settings conflict");
     sandbox.ok("git", &["config", "ghguard.account", "PERSONAL"]);
-    sandbox.ok("git", &["config", "--unset", "mgh.account"]);
-    sandbox.ok("mgh", &["check"]);
-    sandbox.ok("mgh", &["protections", "--allow", "PeRsOnAl"]);
+    sandbox.ok("git", &["config", "--unset", "mgh.current-identity"]);
+    sandbox.ok("mgh", &["repo", "check"]);
+    sandbox.allow("PeRsOnAl");
 
     assert!(
         !sandbox

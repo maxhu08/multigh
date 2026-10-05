@@ -8,7 +8,7 @@ fn all_completion_targets_work_without_configuration_or_authentication() {
     fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
 
     for shell in ["fish", "bash", "zsh", "powershell", "elvish"] {
-        let text = sandbox.ok("mgh", &["completions", shell]);
+        let text = sandbox.ok("mgh", &["shell", "completions", shell]);
 
         assert!(
             !text.is_empty() && text.contains("mgh") && text.contains("new"),

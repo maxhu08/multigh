@@ -1,9 +1,13 @@
 Details:
-    Print the integration script for Fish, Bash or Zsh. Load it from your shell
-    configuration to prompt for missing repository identities and print verbose
-    entry reports. Install once; the protections and verbose toggles control it.
+    Print Fish, Bash or Zsh integration. Load from your interactive shell config
+    after mgh is on PATH. Entry handles default protections, permission prompts,
+    global autoswitch and verbose output. Successful interactive git init also
+    prompts for permissions in its target repo when protections are on and no
+    identities are allowed. Existing prompt handlers and custom git functions
+    or aliases remain intact. Noninteractive shells do not run entry actions.
+    Restart or reload your shell configuration to load updated integration.
 
 Examples:
-    mgh init fish | source
-    eval "$(mgh init bash)"
-    eval "$(mgh init zsh)"
+    mgh shell init fish | source
+    eval "$(mgh shell init bash)"
+    eval "$(mgh shell init zsh)"

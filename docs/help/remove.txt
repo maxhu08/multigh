@@ -1,0 +1,9 @@
+Details:
+    Remove an identity from the global config and refresh generated Git rules.
+    GitHub CLI remains signed in. Repo permissions are unchanged; repos referring
+    to a removed identity stay blocked until you remove its permission with
+    mgh repo allowed remove <identity> or choose replacements using update.
+    The last identity may be removed; setup then offers to add a new first one.
+
+Examples:
+    mgh identity remove school

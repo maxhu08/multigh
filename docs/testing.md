@@ -17,116 +17,45 @@ The integration entry point is Unix-only
 because its hooks, permissions and terminal harness use Unix APIs. Windows is not
 verified by this suite.
 
+## Unit tests
+
+Small tests beside shared modules cover policy decoding, pending identity saves
+and expected versus unexpected process failures through the actual helpers.
+They complement the integration suite; they do not replace real Git, hooks or
+terminal tests. Run just these tests with `cargo test --bin mgh`.
+
 ## Layout
 
-`tests/integration.rs` registers the following modules as one integration test
-binary. Each behavior has a focused file; shared setup stays in `support/`.
+`tests/integration.rs` registers one integration test binary. Extend the existing
+file that owns the behavior; register a new file in its parent `mod.rs` when a
+separate behavior warrants it. This guide describes ownership rather than listing
+every test, so adding a test does not also require updating an inventory.
 
-```text
-tests/
-    identities/
-        jsonc.rs
-        names.rs
-        paths.rs
-        validation.rs
-    commands/
-        identity/
-            edit.rs
-            new.rs
-        repo/
-            config.rs
-            allowed.rs
-            check.rs
-            picker.rs
-            protections.rs
-            scope.rs
-        settings/
-            autoswitch.rs
-            verbose.rs
-            welcome.rs
-        shell/
-            completions.rs
-            init.rs
-        cli.rs
-        doctor.rs
-        git_config.rs
-        hook.rs
-        output.rs
-        setup.rs
-        status.rs
-        switch.rs
-    guards/
-        commit.rs
-        history.rs
-        push.rs
-        push_input.rs
-    hooks/
-        cloning.rs
-        cocogitto.rs
-        dispatch.rs
-        health.rs
-        husky.rs
-        integration.rs
-        legacy.rs
-        reporting.rs
-        worktrees.rs
-    shell/
-        bash.rs
-        fish.rs
-        init.rs
-        zsh.rs
-    fixtures/
-        identities.jsonc
-        gh.sh
-    support/
-        mod.rs
-        terminal.rs
-    integration.rs
-```
-
-## Coverage
-
-| Behavior | Tests |
+| Location | Behavior |
 | --- | --- |
-| Root help, version, every public help form, invalid arguments and rejection of removed commands | `commands/cli.rs` |
-| Every completion shell and each supported init shell | `commands/shell/completions.rs`, `commands/shell/init.rs` |
-| cliclack identity form, colon-space prompt labels, displayed commit-name default and override, Esc/Ctrl+C cancellation, existing/browser login, failed or wrong-GitHub-account authentication, private atomic saving, preserved JSONC values, comments and formatting, duplicates and invalid input, config locations, concurrent edits, setup/switch recovery and separate repository authorization | `commands/identity/new.rs` |
-| Editing and removal, defaults, cancellation, comments and other identity preservation, failed browser login, concurrent edits, symlinks, unknown identities and stale repo permissions | `commands/identity/edit.rs` |
-| Repository-required scope, default-on protections, explicit local exceptions and setup preservation, allowed add/remove with an empty-list block | `commands/repo/scope.rs`, `commands/repo/protections.rs`, `commands/repo/allowed.rs` |
-| Global autoswitch across repositories, single-identity selection notices, compact successful output with verbose on, unchanged manual-switch reports, repeated multi-identity selection, cancellation, nonterminal input, authentication failures and no hook switching | `commands/settings/autoswitch.rs`, `shell/` |
-| Canonical hyphenated repo keys, compatibility reads, repeated-value migration on entry/setup/writes, empty permission lists, stale-key precedence, read-only status/welcome/guards and preserved local exceptions | `commands/repo/config.rs` |
-| Read-only diagnostics, tool/config/authentication/hook failures | `commands/doctor.rs` |
-| Switching, failed authentication changes, global/local commit details and explicit authorization | `commands/switch.rs` |
-| Configured identity names with labeled GitHub usernames, commit names, commit emails and filepaths, identities without a login, green active marker, purple two-line Accounts block, case-insensitive mapping, unmapped GitHub accounts, full authentication output with upstream colors/bold text, color opt-outs and redirected streams, read-only behavior and errors | `commands/status.rs` |
-| Identity welcome heading and toggle confirmations, case-insensitive identity names aligned in the second column without a separator, green names and purple labels, NO_COLOR/dumb-terminal handling, GitHub usernames below, effective commit email, mismatch warnings and unavailable configuration | `commands/settings/welcome.rs` |
-| Setup output order and indentation, Identity labels, home/XDG/global config filepaths, mode defaults, private identity files, identity rules, repeated setup, conflicts and symlinks | `commands/setup.rs` |
-| Generated config comments, updated/unchanged notices, changes to identity files, repeated commands, rule removal, partial failures and custom global config paths | `commands/git_config.rs` |
-| Protections on/off, allowed-list replacement, duplicates, invalid selections and missing configuration | `commands/repo/protections.rs` |
-| Independent verbose preferences, entry reports and quiet non-repository entry | `commands/settings/verbose.rs` |
-| Explicit checks regardless of mode, missing authorization and authentication | `commands/repo/check.rs` |
-| Internal hook dispatcher, merge enforcement, native arguments/input and ordinary checkout | `commands/hook.rs` |
-| cliclack checklist selection, saved selections, scrolling, minimum selection, Esc/Ctrl+C cancellation and interactive cloning | `commands/repo/picker.rs` |
-| Shared column alignment, headings without separators, wrapped long labels, change highlighting, errors, warnings, form colors/NO_COLOR, dumb terminals, redirected output and rejection of forms with redirected stderr | `commands/output.rs` |
-| Identity names, legacy pins, malformed JSONC and field types, required/unknown/duplicate nested fields, line/block comments and trailing commas, identity collisions, example configuration and path overrides | `identities/` |
-| JSONC line/block comments, trailing commas, CRLF and indentation preservation, escaped commit names and protection enforcement | `identities/jsonc.rs` |
-| Actual author/committer overrides, allowed emails, authentication and invalid repository policy | `guards/commit.rs` |
-| Outgoing author/committer names and emails, collaborators, existing remote history, multiple refs and SHA-256 | `guards/history.rs`, `guards/push.rs` |
-| Malformed hook input, encoding, deletion authorization and missing remote baselines | `guards/push_input.rs` |
-| Normal, bare, empty and no-checkout clones without authorization | `hooks/cloning.rs` |
-| Cocogitto hook installation, conventional and merge messages, invalid-message rejection and coexistence with mgh identity protections | `hooks/cocogitto.rs` |
-| Every installed hook launcher and native forwarding with protections off | `hooks/dispatch.rs` |
-| Missing, changed and non-executable hooks, overrides, repair and recursion prevention | `hooks/health.rs` |
-| Preserved hooks, rejection, commit-message hooks, input, path resets, Husky and worktrees | `hooks/integration.rs`, `hooks/husky.rs`, `hooks/worktrees.rs` |
-| Legacy hook migration and missing-config enforcement | `hooks/legacy.rs` |
-| Individual detected-hook paths and skipped inactive hooks | `hooks/reporting.rs` |
-| Real interactive startup, directory changes, startup picker and verbose off in all three shells | `shell/` |
-| Noninteractive shells and preservation of Bash string/array prompt handlers | `shell/` |
-| Git initialization prompts in all three shells, multiple permissions, target/options handling, reinitialization, cancellation, Git failures, command overrides and existing Git functions/aliases | `shell/init.rs` |
+| `identities/` | Configuration syntax, validation, identity names, comments and paths. |
+| `commands/identity/` | Creating, editing and removing identities, forms and atomic saves. |
+| `commands/repo/` | Repository scope, permission changes, protections and the picker. |
+| `commands/settings/` | Global preferences, welcome output and autoswitch. |
+| `commands/shell/` | Shell-init syntax and configuration independence. |
+| Other files in `commands/` | CLI parsing, setup, switching, status, doctor, hooks and shared output. |
+| `guards/` | Commit details, outgoing history, push input and rejection behavior. |
+| `hooks/` | Installation, readiness, preservation, cloning, legacy hooks, Husky and worktrees. |
+| `shell/` | Real Fish, Bash and Zsh startup, directory events and Git initialization. |
+| `fixtures/`, `support/` | Fictional identities, simulated GitHub responses, `Sandbox` and terminal helpers. |
 
 These are functional regression tests, not a claim of complete line or branch
 coverage. Assertions check observable outcomes: saved identity policy, commit and
 push acceptance, unchanged settings on failure, forwarded input and terminal
 output. Failed pushes also verify that blocked references were not created.
+
+Keep tests focused on command behavior, saved configuration, permission boundaries,
+external failures and hook/shell integration. Prefer functional outcomes over
+presentation details or behavior owned by dependencies. Diagnostic tests should
+check useful information without requiring a particular layout. Preserve existing
+JSONC comments and formatting in tests because editing must retain the user's file.
+Cocogitto coverage checks coexistence with mgh; it does not retest Cocogitto's parser
+or installer prompts.
 
 ## Isolation
 
@@ -142,8 +71,7 @@ hook launchers and shell commands. Interactive tests use a native pseudo-termina
 including arrow keys, Space, Enter, Escape and Ctrl+C. Each terminal session has a deadline
 and cleans up its child process if the test fails.
 Ctrl+C can be delivered as SIGINT before the prompt enters raw mode. Cancellation
-tests verify unsuccessful exit and unchanged settings; only Escape requires the
-prompt's cancellation message.
+tests verify unsuccessful exit and unchanged settings.
 
 ## Focused runs
 

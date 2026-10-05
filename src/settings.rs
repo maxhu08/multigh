@@ -1,22 +1,51 @@
-use crate::{config, git};
+use crate::{repository::Repository, storage};
 use anyhow::Result;
 use std::{fs, path::PathBuf};
 
 pub fn directory() -> Result<PathBuf> {
-    Ok(config::directory("XDG_STATE_HOME", ".local/state")?.join("multigh"))
+    Ok(storage::directory("XDG_STATE_HOME", ".local/state")?.join("multigh"))
 }
 
-pub fn enabled(name: &str) -> Result<bool> {
-    Ok(directory()?.join(format!("{name}-enabled")).is_file())
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Preference {
+    Autoswitch,
+    Verbose,
+    Welcome,
 }
 
-pub fn set(name: &str, enabled: bool) -> Result<()> {
+impl Preference {
+    fn marker(self) -> &'static str {
+        match self {
+            Self::Autoswitch => "autoswitch-enabled",
+            Self::Verbose => "verbose-enabled",
+            Self::Welcome => "welcome-enabled",
+        }
+    }
+}
+
+pub fn enabled(preference: Preference) -> Result<bool> {
+    Ok(directory()?.join(preference.marker()).is_file())
+}
+
+pub fn set(preference: Preference, enabled: bool) -> Result<()> {
+    set_marker(preference.marker(), enabled)
+}
+
+pub fn setup_complete() -> Result<bool> {
+    Ok(directory()?.join("setup-complete-enabled").is_file())
+}
+
+pub fn mark_setup_complete() -> Result<()> {
+    set_marker("setup-complete-enabled", true)
+}
+
+fn set_marker(name: &str, enabled: bool) -> Result<()> {
     let directory = directory()?;
-    let marker = directory.join(format!("{name}-enabled"));
+    let marker = directory.join(name);
 
     if enabled {
         fs::create_dir_all(&directory)?;
-        git::private(&directory, true)?;
+        storage::private(&directory, true)?;
         fs::write(&marker, "")?;
     } else if marker.exists() {
         fs::remove_file(marker)?;
@@ -25,13 +54,15 @@ pub fn set(name: &str, enabled: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn repo_enabled(key: &str, default: bool) -> Result<bool> {
-    if git::local(key)?.is_none() {
-        return Ok(default);
+pub fn protections(repository: &Repository) -> Result<bool> {
+    if repository.local("mgh.protections")?.is_none() {
+        return Ok(true);
     }
-    Ok(git::run(&["config", "--local", "--type=bool", "--get", key])? == "true")
-}
-
-pub fn protections() -> Result<bool> {
-    repo_enabled("mgh.protections", true)
+    Ok(repository.run(&[
+        "config",
+        "--local",
+        "--type=bool",
+        "--get",
+        "mgh.protections",
+    ])? == "true")
 }

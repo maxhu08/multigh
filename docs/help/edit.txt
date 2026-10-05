@@ -1,6 +1,6 @@
 Details:
     Change a global identity's username, commit name or email. Without flags,
-    prompt with existing values as defaults using cliclack. Supplied flags edit
+    prompt with existing values as defaults. Supplied flags edit
     only those fields. Preserve other identities, JSONC comments, formatting and
     additional emails. Validate before saving; verify GitHub login for the chosen
     username. Cancelled input, invalid values and failed login do not save.

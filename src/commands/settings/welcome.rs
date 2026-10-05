@@ -5,10 +5,10 @@ use crate::{
     policy, settings,
 };
 use anyhow::Result;
-use std::{collections::BTreeSet, path::PathBuf};
+use std::path::PathBuf;
 
 pub fn run(path: PathBuf) -> Result<()> {
-    if !settings::enabled("welcome")? {
+    if !settings::enabled(settings::Preference::Welcome)? {
         return Ok(());
     }
 
@@ -27,13 +27,8 @@ pub fn run(path: PathBuf) -> Result<()> {
     let selected_identity = config
         .as_ref()
         .ok()
-        .and_then(|config| {
-            config
-                .identities
-                .iter()
-                .find(|(_, identity)| identity.username.eq_ignore_ascii_case(&selected))
-        })
-        .map(|(identity_name, _)| identity_name.as_str())
+        .and_then(|config| config.identity_for_username(&selected))
+        .map(|(identity_name, _)| identity_name)
         .unwrap_or("not configured");
 
     output::heading("Identity", selected_identity, Color::Changed);
@@ -46,41 +41,31 @@ pub fn run(path: PathBuf) -> Result<()> {
 
     match config {
         Ok(config) => {
-            let identity_names: BTreeSet<_> = values
-                .get(policy::ALLOWED)
-                .or_else(|| values.get("mgh.allowedaccount"))
-                .cloned()
-                .unwrap_or_else(|| {
-                    value(policy::CURRENT)
-                        .or(value("mgh.account"))
-                        .or(value("ghguard.account"))
-                        .map(|identity_name| vec![identity_name.to_owned()])
-                        .unwrap_or_default()
-                })
-                .into_iter()
-                .filter(|name| !name.is_empty())
-                .map(|identity_name| identity_name.to_ascii_lowercase())
-                .collect();
+            let identity_names = match policy::decode(&values) {
+                Ok(names) => names,
+                Err(error) => {
+                    output::warning(&error.to_string());
+                    println!();
+                    return Ok(());
+                }
+            };
             let mut allowed_identity = None;
 
             for identity_name in &identity_names {
                 match config.identity(identity_name) {
-                    Ok(identity) if identity.username.eq_ignore_ascii_case(&selected) => {
-                        allowed_identity = Some(identity_name)
+                    Ok(identity) if identity.matches_username(&selected) => {
+                        allowed_identity = Some((identity_name, identity))
                     }
                     Err(error) => output::warning(&error.to_string()),
                     _ => {}
                 }
             }
 
-            if let Some(identity_name) = allowed_identity {
-                let identity = config.identity(identity_name)?;
-
-                if value("user.name") != Some(identity.commit_name.as_str())
-                    || !identity
-                        .allowed_emails
-                        .contains(&value("user.email").unwrap_or_default().to_ascii_lowercase())
-                {
+            if let Some((identity_name, identity)) = allowed_identity {
+                if !identity.matches_commit(
+                    value("user.name").unwrap_or_default(),
+                    value("user.email").unwrap_or_default(),
+                ) {
                     output::warning(&format!("Commit details need: mgh switch {identity_name}"));
                 }
             } else if !identity_names.is_empty() {

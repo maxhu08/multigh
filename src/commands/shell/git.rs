@@ -1,4 +1,5 @@
-use crate::{config, output, policy, process};
+use crate::terminal;
+use crate::{config, output, process};
 use anyhow::{Context, Result};
 use std::{path::PathBuf, process::Command};
 
@@ -12,7 +13,7 @@ pub fn run(args: &[String], config_path: Option<PathBuf>) -> Result<()> {
         std::process::exit(status.code().unwrap_or(1));
     }
 
-    if !policy::interactive() {
+    if !terminal::interactive() {
         return Ok(());
     }
 

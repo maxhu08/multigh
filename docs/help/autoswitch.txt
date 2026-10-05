@@ -3,13 +3,8 @@ Details:
     the global preference. on also checks the current repo when inside one. Shell
     integration applies it on repo entry and interactive terminal startup.
     One allowed identity is selected automatically unless already active.
-    Multiple allowed identities always show a cliclack single-selection picker,
-    initially highlighting the current identity if allowed. Use arrows/Enter;
+    With multiple allowed identities, choose one using arrows and Enter;
     Esc/Ctrl+C cancels without switching. Only allowed identities are shown.
-    A sole identity prints that it was the only choice and names it, including
-    when already active. Successful switching ends after identity, GitHub account
-    and global commit details; no repo/hook reports or global-config notice follow,
-    even with verbose on. Explicit mgh switch retains its full output.
 
     Switching changes gh authentication, global commit defaults and this repo's
     commit details, like mgh switch. Permissions stay unchanged. An empty allowed

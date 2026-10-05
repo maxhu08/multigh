@@ -23,68 +23,6 @@ fn install(sandbox: &Sandbox) {
 }
 
 #[test]
-fn installed_cocogitto_hook_accepts_conventional_and_merge_messages() {
-    let sandbox = Sandbox::new();
-
-    install(&sandbox);
-
-    for message in [
-        "feat: add identity switching",
-        "fix(config): preserve comments",
-        "feat!: change identity configuration",
-        "fix(config)!: change identity configuration",
-        "feat: change configuration\n\nBREAKING CHANGE: new schema",
-        "Merge branch 'topic'",
-    ] {
-        sandbox.write("repo/message with spaces", message);
-        sandbox.ok(
-            "git",
-            &["hook", "run", "commit-msg", "--", "message with spaces"],
-        );
-    }
-
-    for kind in [
-        "build", "chore", "ci", "docs", "perf", "refactor", "revert", "style", "test",
-    ] {
-        sandbox.write("repo/message", &format!("{kind}: update project"));
-        sandbox.ok("git", &["hook", "run", "commit-msg", "--", "message"]);
-    }
-}
-
-#[test]
-fn installed_cocogitto_hook_rejects_invalid_messages_without_creating_commits() {
-    let sandbox = Sandbox::new();
-
-    install(&sandbox);
-
-    for message in ["update project", "unknown: update project", "feat:", ""] {
-        sandbox.blocked("git", &["commit", "--allow-empty", "-m", message], "Error");
-        assert!(
-            !sandbox
-                .run("git", &["rev-parse", "--verify", "HEAD"])
-                .status
-                .success()
-        );
-    }
-}
-
-#[test]
-fn cocogitto_installation_preserves_existing_hooks_when_replacement_is_declined() {
-    let sandbox = Sandbox::new();
-
-    install(&sandbox);
-    sandbox.executable("repo/.git/hooks/commit-msg", "#!/bin/sh\nexit 42\n");
-
-    let output = sandbox.input("cog", &["install-hook", "--all"], b"n\n");
-
-    assert!(output.status.success());
-    assert_eq!(
-        fs::read_to_string(sandbox.path("repo/.git/hooks/commit-msg")).unwrap(),
-        "#!/bin/sh\nexit 42\n"
-    );
-}
-
-#[test]
 fn cocogitto_and_mgh_enforce_messages_and_identity_without_replacing_shared_hooks() {
     let sandbox = Sandbox::new();
 

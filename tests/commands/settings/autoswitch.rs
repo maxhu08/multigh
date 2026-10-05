@@ -185,101 +185,22 @@ fn selecting_permissions_in_a_new_repo_then_autoswitching_uses_only_selected_ide
 }
 
 #[test]
-fn successful_autoswitch_stops_after_identity_and_commit_details_with_verbose_on() {
-    let sandbox = Sandbox::new();
-    sandbox.protect();
-    sandbox.ok("mgh", &["repo", "allowed", "add", "school"]);
-    sandbox.executable("repo/.git/hooks/pre-commit", "#!/bin/sh\nexit 0\n");
-    sandbox
-        .command("mgh")
-        .current_dir(sandbox.path("home"))
-        .args(["settings", "autoswitch", "on"])
-        .output()
-        .unwrap();
-    let (status, output) = terminal(
-        sandbox.command("mgh").args(["internal", "enter"]),
-        &[("Which allowed identity should be active?", b"\x1b[B\r")],
-    );
-
-    assert!(status.success(), "{output}");
-    assert!(output.contains("Identity chosen"), "{output}");
-    assert!(
-        output.contains("✓ Identity selected         school"),
-        "{output}"
-    );
-    assert!(output.contains("GitHub account"), "{output}");
-    assert!(output.contains("Global commit defaults"), "{output}");
-    assert!(output.trim_end().ends_with("bob@example.edu"), "{output}");
-    for extra in [
-        "Current repository",
-        "Repo config",
-        "Allowed identities",
-        "Existing hooks detected",
-        "Global Git config",
-    ] {
-        assert!(!output.contains(extra), "{extra}: {output}");
-    }
-    assert_eq!(
-        sandbox.ok("git", &["config", "--local", "user.email"]),
-        "bob@example.edu\n"
-    );
-    assert_eq!(
-        sandbox.ok("git", &["config", "--global", "user.email"]),
-        "bob@example.edu\n"
-    );
-    assert_eq!(
-        sandbox.ok("git", &["config", "--get-all", "mgh.allowed-identity"]),
-        "personal\nschool\n"
-    );
-}
-
-#[test]
-fn sole_identity_reports_its_selection_even_when_already_active_without_reswitching() {
+fn sole_active_identity_does_not_switch_again_or_rewrite_configuration() {
     let sandbox = Sandbox::new();
     sandbox.protect();
     sandbox.write("active", "bob\n");
-    let switched = sandbox.ok("mgh", &["settings", "autoswitch", "on"]);
-
-    assert!(
-        switched.contains("Only one allowed identity detected; selecting personal."),
-        "{switched}"
-    );
-    assert!(
-        switched.contains("✓ Identity selected         personal"),
-        "{switched}"
-    );
-    assert!(
-        !switched.contains("Current repository") && !switched.contains("Global Git config"),
-        "{switched}"
+    sandbox.ok("mgh", &["settings", "autoswitch", "on"]);
+    assert_eq!(
+        fs::read_to_string(sandbox.path("active")).unwrap(),
+        "alice\n"
     );
     fs::remove_file(sandbox.path("gh-calls")).unwrap();
     let before = fs::read(sandbox.path("gitconfig")).unwrap();
-    let existing = sandbox.ok("mgh", &["internal", "enter"]);
-
-    assert!(
-        existing
-            .contains("Only one allowed identity detected; selected personal (already active)."),
-        "{existing}"
-    );
-    assert!(
-        !existing.contains("Allowed identities") && !existing.contains("Global commit defaults"),
-        "{existing}"
-    );
+    sandbox.ok("mgh", &["internal", "enter"]);
     assert!(
         !fs::read_to_string(sandbox.path("gh-calls"))
             .unwrap()
             .contains("auth switch")
     );
     assert_eq!(fs::read(sandbox.path("gitconfig")).unwrap(), before);
-}
-
-#[test]
-fn manual_switch_keeps_repository_details_and_global_config_notice() {
-    let sandbox = Sandbox::new();
-    sandbox.protect();
-    let output = sandbox.ok("mgh", &["switch", "personal"]);
-
-    assert!(output.contains("Current repository"), "{output}");
-    assert!(output.contains("Allowed identities"), "{output}");
-    assert!(output.contains("Global Git config updated"), "{output}");
 }

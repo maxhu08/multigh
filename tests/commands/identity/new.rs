@@ -172,18 +172,16 @@ fn new_creates_a_first_identity_in_the_default_or_explicit_config_location() {
         assert!(path.is_file());
         let generated = fs::read_to_string(&path).unwrap();
 
-        assert!(generated.contains("\n  \"work\": {"));
-        assert!(generated.contains("\n    \"commit\": {"));
-        assert!(generated.contains("\n      \"email\": "));
         assert!(output.contains(if explicit {
             "custom/identities.jsonc"
         } else {
             "config/multigh/identities.jsonc"
         }));
-        let saved: serde_json::Value =
-            serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+        let saved: serde_json::Value = serde_json::from_str(&generated).unwrap();
 
         assert!(saved.get("personal").is_none());
+        assert_eq!(saved["work"]["username"], "carol");
+        assert_eq!(saved["work"]["commit"]["email"], "carol@example.com");
         sandbox.ok(
             "mgh",
             &if explicit {
@@ -224,10 +222,6 @@ fn new_prompts_for_missing_fields_and_uses_the_default_commit_name() {
     );
 
     assert!(status.success(), "{output}");
-    assert!(output.contains("Add new identity"), "{output}");
-    assert!(!output.contains("New GitHub account"), "{output}");
-    assert!(output.contains("Identity details entered"), "{output}");
-    assert!(output.contains("carol (default)"), "{output}");
     let saved: serde_json::Value = serde_json::from_str(
         &fs::read_to_string(sandbox.path("config/multigh/identities.jsonc")).unwrap(),
     )
@@ -238,7 +232,7 @@ fn new_prompts_for_missing_fields_and_uses_the_default_commit_name() {
 }
 
 #[test]
-fn new_commit_name_prompt_accepts_an_override_and_shows_the_username_default() {
+fn new_commit_name_prompt_saves_an_override() {
     let sandbox = Sandbox::new();
 
     sandbox.write("accounts-json", LOGIN);
@@ -257,7 +251,6 @@ fn new_commit_name_prompt_accepts_an_override_and_shows_the_username_default() {
     );
 
     assert!(status.success(), "{output}");
-    assert!(output.contains("Identity details entered"), "{output}");
     assert_eq!(
         sandbox.ok("git", &["config", "--global", "user.name"]),
         "Carol Example\n"

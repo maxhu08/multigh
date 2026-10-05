@@ -2,7 +2,8 @@ use crate::{
     config::Config,
     git, github, hooks,
     output::{self, Color},
-    policy, process,
+    process,
+    repository::Repository,
 };
 use anyhow::{Result, ensure};
 use std::path::PathBuf;
@@ -57,11 +58,11 @@ pub fn run(path: PathBuf) -> Result<()> {
             output::warning(&format!("{error:#}"));
         }
     }
-    let problems = if policy::repository()? {
-        hooks::problems()?
+    let problems = if let Some(repository) = Repository::discover()? {
+        hooks::readiness::problems(&repository)?
     } else {
-        let mut problems = hooks::shared_problems()?;
-        if git::global("core.hooksPath")? != hooks::directory()?.to_string_lossy() {
+        let mut problems = hooks::readiness::shared_problems()?;
+        if git::global::value("core.hooksPath")? != hooks::directory()?.to_string_lossy() {
             problems.push("Global Git hook path does not use mgh; run mgh setup.".to_owned());
         }
         problems

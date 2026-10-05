@@ -1,22 +1,24 @@
 use crate::{
     config::{Config, Identity},
-    git, github, policy,
+    github, policy,
+    repository::Repository,
 };
-use anyhow::{Result, ensure};
+use anyhow::{Result, bail, ensure};
 use std::collections::BTreeSet;
 
-pub fn commit_details(identity_name: &str, identity: &Identity) -> Result<()> {
+pub fn commit_details(
+    repository: &Repository,
+    identity_name: &str,
+    identity: &Identity,
+) -> Result<()> {
     for kind in ["AUTHOR", "COMMITTER"] {
-        let value = git::run(&["var", &format!("GIT_{kind}_IDENT")])?;
+        let value = repository.run(&["var", &format!("GIT_{kind}_IDENT")])?;
         let parsed = value
             .rsplit_once(" <")
             .and_then(|(name, rest)| rest.split_once('>').map(|(email, _)| (name, email)));
 
         ensure!(
-            parsed.is_some_and(|(name, email)| name == identity.commit_name
-                && identity
-                    .allowed_emails
-                    .contains(&email.to_ascii_lowercase())),
+            parsed.is_some_and(|(name, email)| identity.matches_commit(name, email)),
             "{kind} commit details do not match identity [{identity_name}]: {value}\nRun: mgh switch {identity_name}\nWhen amending an old commit, also use --reset-author."
         );
     }
@@ -24,49 +26,36 @@ pub fn commit_details(identity_name: &str, identity: &Identity) -> Result<()> {
     Ok(())
 }
 
-pub fn check(config: &Config) -> Result<()> {
-    if !policy::repository()? {
-        return Ok(());
-    }
+pub fn check(repository: &Repository, config: &Config) -> Result<()> {
+    let allowed = policy::allowed(repository, config)?;
+    let (identity_name, identity) = policy::active(config, &allowed, &github::active()?)?;
 
-    let allowed = policy::allowed(config)?;
-    let identity_name = policy::active(config, &allowed, &github::active()?)?;
-
-    commit_details(&identity_name, config.identity(&identity_name)?)
+    commit_details(repository, identity_name, identity)
 }
 
-pub fn push(config: &Config, updates: &str) -> Result<()> {
-    let allowed = policy::allowed(config)?;
-    let identity_name = policy::active(config, &allowed, &github::active()?)?;
-    let identity = config.identity(&identity_name)?;
+pub fn push(repository: &Repository, config: &Config, updates: &str) -> Result<()> {
+    let allowed = policy::allowed(repository, config)?;
+    let (identity_name, identity) = policy::active(config, &allowed, &github::active()?)?;
 
     let mut checked = BTreeSet::new();
 
     for update in updates.lines() {
-        let fields: Vec<_> = update.split_whitespace().collect();
+        let update = PushUpdate::parse(update)?;
 
-        ensure!(fields.len() == 4, "Invalid push-hook input");
-
-        let (local, remote) = (fields[1], fields[3]);
-
-        ensure!(
-            [local, remote]
-                .iter()
-                .all(|oid| [40, 64].contains(&oid.len())
-                    && oid.bytes().all(|c| c.is_ascii_hexdigit())),
-            "Invalid commit ID in push-hook input"
-        );
-
-        if local.bytes().all(|c| c == b'0') {
+        if update.local_oid.bytes().all(|c| c == b'0') {
             continue;
         }
 
-        let exclude = format!("^{remote}");
-        let mut args = vec!["log", "--format=%H%x00%an%x00%ae%x00%cn%x00%ce%x00", local];
+        let exclude = format!("^{}", update.remote_oid);
+        let mut args = vec![
+            "log",
+            "--format=%H%x00%an%x00%ae%x00%cn%x00%ce%x00",
+            update.local_oid,
+        ];
 
-        if !remote.bytes().all(|c| c == b'0') {
+        if !update.remote_oid.bytes().all(|c| c == b'0') {
             ensure!(
-                git::optional(&["cat-file", "-e", &format!("{remote}^{{commit}}")])?.is_some(),
+                repository.commit_exists(update.remote_oid)?,
                 "Remote baseline is missing locally. Fetch the remote and try again."
             );
 
@@ -75,19 +64,10 @@ pub fn push(config: &Config, updates: &str) -> Result<()> {
 
         args.push("--");
 
-        let log = git::run(&args)?;
-        let fields: Vec<_> = log.split('\0').collect();
+        let log = repository.run(&args)?;
 
-        for commit in fields.chunks(5) {
-            if commit.len() == 1 && commit[0].trim().is_empty() {
-                continue;
-            }
-
-            ensure!(commit.len() == 5, "Cannot parse outgoing commit details");
-
-            let oid = commit[0].trim();
-
-            if !checked.insert(oid.to_owned()) {
+        for commit in OutgoingCommit::parse_log(&log)? {
+            if !checked.insert(commit.oid.to_owned()) {
                 continue;
             }
 
@@ -96,20 +76,22 @@ pub fn push(config: &Config, updates: &str) -> Result<()> {
                     continue;
                 }
 
-                let wrong_name = [commit[1], commit[3]].iter().any(|name| {
-                    (name.eq_ignore_ascii_case(&other.username)
-                        || name.eq_ignore_ascii_case(&other.commit_name))
-                        && !name.eq_ignore_ascii_case(&identity.commit_name)
-                        && !name.eq_ignore_ascii_case(&identity.username)
-                });
-                let wrong_email = [commit[2], commit[4]]
+                let wrong_name = [commit.author_name, commit.committer_name]
                     .iter()
-                    .any(|email| other.allowed_emails.contains(&email.to_ascii_lowercase()));
+                    .any(|name| {
+                        (other.matches_username(name)
+                            || name.eq_ignore_ascii_case(&other.commit_name))
+                            && !name.eq_ignore_ascii_case(&identity.commit_name)
+                            && !identity.matches_username(name)
+                    });
+                let wrong_email = [commit.author_email, commit.committer_email]
+                    .iter()
+                    .any(|email| other.accepts_email(email));
 
                 ensure!(
                     !wrong_name && !wrong_email,
                     "Push blocked: commit {} contains your {} identity in a {} repository.\nCorrect the affected commit before pushing.",
-                    &oid[..12],
+                    &commit.oid[..12],
                     other_identity_name,
                     identity_name
                 );
@@ -118,4 +100,69 @@ pub fn push(config: &Config, updates: &str) -> Result<()> {
     }
 
     Ok(())
+}
+
+struct PushUpdate<'a> {
+    local_oid: &'a str,
+    remote_oid: &'a str,
+}
+
+impl<'a> PushUpdate<'a> {
+    fn parse(line: &'a str) -> Result<Self> {
+        let fields: Vec<_> = line.split_whitespace().collect();
+        let [_, local_oid, _, remote_oid] = fields.as_slice() else {
+            bail!("Invalid push-hook input");
+        };
+
+        ensure!(
+            [local_oid, remote_oid]
+                .iter()
+                .all(|oid| [40, 64].contains(&oid.len())
+                    && oid.bytes().all(|c| c.is_ascii_hexdigit())),
+            "Invalid commit ID in push-hook input"
+        );
+
+        Ok(Self {
+            local_oid,
+            remote_oid,
+        })
+    }
+}
+
+struct OutgoingCommit<'a> {
+    oid: &'a str,
+    author_name: &'a str,
+    author_email: &'a str,
+    committer_name: &'a str,
+    committer_email: &'a str,
+}
+
+impl<'a> OutgoingCommit<'a> {
+    fn parse_log(log: &'a str) -> Result<Vec<Self>> {
+        let fields: Vec<_> = log.split_terminator('\0').collect();
+        let mut commits = Vec::new();
+
+        for fields in fields.chunks(5) {
+            let [
+                oid,
+                author_name,
+                author_email,
+                committer_name,
+                committer_email,
+            ] = fields
+            else {
+                bail!("Cannot parse outgoing commit details");
+            };
+
+            commits.push(Self {
+                oid: oid.trim(),
+                author_name,
+                author_email,
+                committer_name,
+                committer_email,
+            });
+        }
+
+        Ok(commits)
+    }
 }

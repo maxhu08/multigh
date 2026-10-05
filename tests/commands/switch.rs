@@ -129,3 +129,34 @@ fn failed_or_invalid_switches_do_not_change_authentication_or_commit_defaults() 
         "alice"
     );
 }
+
+#[test]
+fn invalid_repository_permissions_block_switching_before_any_changes() {
+    for (key, value, message) in [
+        ("mgh.allowed-identity", "removed", "Unknown identity"),
+        ("ghguard.account", "school", "settings conflict"),
+    ] {
+        let sandbox = Sandbox::new();
+        sandbox.ok("mgh", &["setup"]);
+        sandbox.write("active", "bob\n");
+        sandbox.ok(
+            "git",
+            &["config", "--local", "mgh.current-identity", "personal"],
+        );
+        sandbox.ok("git", &["config", "--local", key, value]);
+
+        let global = fs::read(sandbox.path("gitconfig")).unwrap();
+        let local = fs::read(sandbox.path("repo/.git/config")).unwrap();
+        let identity_file = sandbox.path("state/multigh/identities/git-personal.conf");
+        let identity = fs::read(&identity_file).unwrap();
+        let active = fs::read(sandbox.path("active")).unwrap();
+
+        sandbox.blocked("mgh", &["switch", "personal"], message);
+
+        assert_eq!(fs::read(sandbox.path("gitconfig")).unwrap(), global);
+        assert_eq!(fs::read(sandbox.path("repo/.git/config")).unwrap(), local);
+        assert_eq!(fs::read(identity_file).unwrap(), identity);
+        assert_eq!(fs::read(sandbox.path("active")).unwrap(), active);
+        assert!(!sandbox.path("gh-calls").exists());
+    }
+}

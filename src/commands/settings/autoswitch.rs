@@ -1,18 +1,17 @@
-use crate::{config::Config, github, output, policy};
+use crate::terminal;
+use crate::{config::Config, git, github, output, policy, repository::Repository};
 use anyhow::{Result, ensure};
 
-pub fn run(config: &Config) -> Result<bool> {
-    let allowed = policy::allowed(config)?;
+pub fn select(repository: &Repository, config: &Config) -> Result<bool> {
+    let allowed = policy::allowed(repository, config)?;
     if allowed.is_empty() {
         return Ok(false);
     }
     let login = github::selected()?;
     let current = allowed.iter().find(|name| {
-        login.as_ref().is_some_and(|login| {
-            config.identities[*name]
-                .username
-                .eq_ignore_ascii_case(login)
-        })
+        login
+            .as_ref()
+            .is_some_and(|login| config.identities[*name].matches_username(login))
     });
     let name = if allowed.len() == 1 {
         let name = allowed.first().unwrap();
@@ -34,7 +33,7 @@ pub fn run(config: &Config) -> Result<bool> {
         name.clone()
     } else {
         ensure!(
-            policy::interactive(),
+            terminal::interactive(),
             "Several identities are allowed; choose one in an interactive terminal.\nRun: mgh switch <allowed-identity>"
         );
         cliclack::intro("Switch identity")?;
@@ -49,7 +48,12 @@ pub fn run(config: &Config) -> Result<bool> {
         cliclack::outro("Identity chosen")?;
         selected
     };
-    super::super::switch::automatic(config, &name)?;
+    git::global::update(&format!("mgh switch {name}"), |global| {
+        let selected = super::super::switch::select(config, &name, Some(repository), global)?;
+        super::super::switch::report(config, Some(repository), &selected, false)?;
+        global.suppress_report();
+        Ok(())
+    })?;
 
     Ok(true)
 }

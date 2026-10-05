@@ -4,23 +4,24 @@ pub mod welcome;
 use crate::{
     cli::{SettingsCommand, Toggle},
     output::{self, Color},
-    settings,
+    repository::Repository,
+    settings::{self, Preference},
 };
 use anyhow::Result;
 use std::path::PathBuf;
 
-pub fn report(name: &str) -> Result<()> {
-    let enabled = settings::enabled(name)?;
-    let (label, description) = match name {
-        "autoswitch" => (
+pub fn report(preference: Preference) -> Result<()> {
+    let enabled = settings::enabled(preference)?;
+    let (label, description) = match preference {
+        Preference::Autoswitch => (
             "Autoswitch",
             "Switch to the sole allowed identity on repo entry; always ask when several are allowed.",
         ),
-        "welcome" => (
+        Preference::Welcome => (
             "Welcome",
             "Show the active identity in the terminal greeting.",
         ),
-        _ => (
+        Preference::Verbose => (
             "Verbose",
             "Show allowed identities when entering a repo or starting a terminal there.",
         ),
@@ -39,25 +40,26 @@ pub fn report(name: &str) -> Result<()> {
 }
 
 pub fn run(path: PathBuf, command: Option<SettingsCommand>) -> Result<()> {
-    let (name, state) = match command {
-        Some(SettingsCommand::Autoswitch { state }) => ("autoswitch", state),
-        Some(SettingsCommand::Verbose { state }) => ("verbose", state),
-        Some(SettingsCommand::Welcome { state }) => ("welcome", state),
+    let (preference, state) = match command {
+        Some(SettingsCommand::Autoswitch { state }) => (Preference::Autoswitch, state),
+        Some(SettingsCommand::Verbose { state }) => (Preference::Verbose, state),
+        Some(SettingsCommand::Welcome { state }) => (Preference::Welcome, state),
         None => {
-            report("autoswitch")?;
-            report("verbose")?;
-            return report("welcome");
+            report(Preference::Autoswitch)?;
+            report(Preference::Verbose)?;
+            return report(Preference::Welcome);
         }
     };
-    let enable_autoswitch = name == "autoswitch" && matches!(state, Some(Toggle::On));
+    let enable_autoswitch =
+        preference == Preference::Autoswitch && matches!(state, Some(Toggle::On));
 
     if let Some(state) = state {
-        settings::set(name, matches!(state, Toggle::On))?;
+        settings::set(preference, matches!(state, Toggle::On))?;
     }
-    report(name)?;
+    report(preference)?;
 
-    if enable_autoswitch {
-        super::enter::run(path)?;
+    if enable_autoswitch && let Some(repository) = Repository::discover()? {
+        super::enter::enter(&repository, path)?;
     }
 
     Ok(())

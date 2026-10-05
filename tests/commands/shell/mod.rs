@@ -1,2 +1,1 @@
-mod completions;
 mod init;

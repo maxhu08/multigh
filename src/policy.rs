@@ -1,30 +1,22 @@
 use crate::{
-    config::Config,
-    git, github,
-    output::{self, Color},
+    config::{Config, Identity},
+    github,
+    repository::Repository,
 };
-use anyhow::{Result, ensure};
-use std::{
-    collections::BTreeSet,
-    io::{self, IsTerminal},
-};
+use anyhow::{Result, bail, ensure};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub const ALLOWED: &str = "mgh.allowed-identity";
 pub const CURRENT: &str = "mgh.current-identity";
 
-pub fn repository() -> Result<bool> {
-    Ok(git::optional(&["rev-parse", "--git-dir"])?.is_some())
-}
-
-pub fn stored() -> Result<BTreeSet<String>> {
-    if !repository()? {
-        return Ok(BTreeSet::new());
-    }
-
-    let values = git::entries(
-        Some("--local"),
+pub fn stored(repository: &Repository) -> Result<BTreeSet<String>> {
+    let values = repository.entries(
         "^(mgh\\.(allowed-identity|current-identity|allowedaccount|account)|ghguard\\.account)$",
     )?;
+    decode(&values)
+}
+
+pub fn decode(values: &BTreeMap<String, Vec<String>>) -> Result<BTreeSet<String>> {
     let explicit = values
         .get(ALLOWED)
         .or_else(|| values.get("mgh.allowedaccount"));
@@ -55,30 +47,26 @@ pub fn stored() -> Result<BTreeSet<String>> {
     Ok(allowed)
 }
 
-pub fn migrate() -> Result<()> {
-    if !repository()? {
-        return Ok(());
-    }
-
-    let legacy = git::entries(Some("--local"), "^mgh\\.(allowedaccount|account)$")?;
+pub fn migrate(repository: &Repository) -> Result<()> {
+    let legacy = repository.entries("^mgh\\.(allowedaccount|account)$")?;
 
     for (old, new) in [("mgh.allowedaccount", ALLOWED), ("mgh.account", CURRENT)] {
         if let Some(values) = legacy.get(old) {
-            if git::local(new)?.is_none() {
+            if repository.local(new)?.is_none() {
                 for value in values {
-                    git::run(&["config", "--local", "--add", new, value])?;
+                    repository.run(&["config", "--local", "--add", new, value])?;
                 }
             }
 
-            git::run(&["config", "--local", "--unset-all", old])?;
+            repository.run(&["config", "--local", "--unset-all", old])?;
         }
     }
 
     Ok(())
 }
 
-pub fn allowed(config: &Config) -> Result<BTreeSet<String>> {
-    let allowed = stored()?;
+pub fn allowed(repository: &Repository, config: &Config) -> Result<BTreeSet<String>> {
+    let allowed = stored(repository)?;
 
     for name in &allowed {
         config.identity(name)?;
@@ -87,83 +75,80 @@ pub fn allowed(config: &Config) -> Result<BTreeSet<String>> {
     Ok(allowed)
 }
 
-pub fn active(config: &Config, allowed: &BTreeSet<String>, login: &str) -> Result<String> {
+pub fn active<'a>(
+    config: &'a Config,
+    allowed: &'a BTreeSet<String>,
+    login: &str,
+) -> Result<(&'a str, &'a Identity)> {
     ensure!(
         !allowed.is_empty(),
         "No identities are authorized for this repository.\nRun: mgh repo allowed update"
     );
 
-    let identity_name = allowed.iter().find(|identity_name| {
-        config.identities[*identity_name]
-            .username
-            .eq_ignore_ascii_case(login)
-    });
+    let identity_name = allowed
+        .iter()
+        .find(|identity_name| config.identities[*identity_name].matches_username(login));
 
-    ensure!(
-        identity_name.is_some(),
-        "GitHub is using {login}, which is not allowed in this repository.\nAllowed identities: {}\nRun: mgh switch <allowed-identity>",
-        allowed
-            .iter()
-            .map(String::as_str)
-            .collect::<Vec<_>>()
-            .join(", ")
-    );
+    let Some(identity_name) = identity_name else {
+        bail!(
+            "GitHub is using {login}, which is not allowed in this repository.\nAllowed identities: {}\nRun: mgh switch <allowed-identity>",
+            allowed
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+    };
 
-    Ok(identity_name.unwrap().clone())
+    Ok((identity_name, &config.identities[identity_name]))
 }
 
-pub fn identity(config: &Config, identity_name: &str) -> Result<()> {
-    let identity = config.identity(identity_name)?;
-
-    migrate()?;
-    git::set("--local", "user.name", &identity.commit_name)?;
-    git::set("--local", "user.email", &identity.commit_email)?;
-    git::set("--local", CURRENT, &identity_name.to_ascii_lowercase())?;
+pub fn apply_identity(
+    repository: &Repository,
+    identity_name: &str,
+    identity: &Identity,
+) -> Result<()> {
+    migrate(repository)?;
+    repository.set("--local", "user.name", &identity.commit_name)?;
+    repository.set("--local", "user.email", &identity.commit_email)?;
+    repository.set("--local", CURRENT, &identity_name.to_ascii_lowercase())?;
 
     Ok(())
 }
 
-pub fn authorize(config: &Config, identity_names: &[String]) -> Result<()> {
-    ensure!(repository()?, "Run this command inside a Git repository");
-
-    let identity_names: BTreeSet<_> = identity_names
-        .iter()
-        .map(|identity_name| identity_name.to_ascii_lowercase())
-        .collect();
-
-    ensure!(
-        !identity_names.is_empty(),
-        "Select at least one allowed identity"
-    );
-
-    for identity_name in &identity_names {
+pub fn authorize(
+    repository: &Repository,
+    config: &Config,
+    identity_names: &BTreeSet<String>,
+) -> Result<()> {
+    for identity_name in identity_names {
         config.identity(identity_name)?;
     }
 
     let selected = github::selected()?.unwrap_or_default();
     let preferred = identity_names
         .iter()
-        .find(|identity_name| {
-            config.identities[*identity_name]
-                .username
-                .eq_ignore_ascii_case(&selected)
-        })
-        .unwrap_or(identity_names.first().unwrap());
+        .find(|identity_name| config.identities[*identity_name].matches_username(&selected))
+        .unwrap_or_else(|| {
+            identity_names
+                .first()
+                .expect("authorization requires a selection")
+        });
 
-    save(&identity_names)?;
-    identity(config, preferred)?;
+    save(repository, identity_names)?;
+    apply_identity(repository, preferred, &config.identities[preferred])?;
 
-    if git::local("ghguard.account")?.is_some() {
-        git::run(&["config", "--local", "--unset-all", "ghguard.account"])?;
+    if repository.local("ghguard.account")?.is_some() {
+        repository.run(&["config", "--local", "--unset-all", "ghguard.account"])?;
     }
 
     Ok(())
 }
 
-pub fn save(identity_names: &BTreeSet<String>) -> Result<()> {
-    migrate()?;
+pub fn save(repository: &Repository, identity_names: &BTreeSet<String>) -> Result<()> {
+    migrate(repository)?;
 
-    git::run(&[
+    repository.run(&[
         "config",
         "--local",
         "--replace-all",
@@ -172,72 +157,63 @@ pub fn save(identity_names: &BTreeSet<String>) -> Result<()> {
     ])?;
 
     for name in identity_names.iter().skip(1) {
-        git::run(&["config", "--local", "--add", ALLOWED, name])?;
+        repository.run(&["config", "--local", "--add", ALLOWED, name])?;
     }
 
     Ok(())
 }
 
-pub fn interactive() -> bool {
-    io::stdin().is_terminal() && io::stdout().is_terminal() && io::stderr().is_terminal()
-}
+#[cfg(test)]
+mod tests {
+    use super::{ALLOWED, CURRENT, decode};
+    use std::collections::{BTreeMap, BTreeSet};
 
-pub fn choose(config: &Config) -> Result<()> {
-    ensure!(
-        interactive(),
-        "Identity selection needs an interactive terminal.\nRun: mgh repo allowed update\nFor automation: mgh repo allowed add <identity>"
-    );
+    #[test]
+    fn explicit_empty_permissions_override_every_legacy_fallback() {
+        let values = BTreeMap::from([
+            (ALLOWED.into(), vec![String::new()]),
+            (CURRENT.into(), vec!["personal".into()]),
+            ("mgh.allowedaccount".into(), vec!["work".into()]),
+            ("ghguard.account".into(), vec!["school".into()]),
+        ]);
 
-    let current: Vec<_> = stored()?
-        .into_iter()
-        .filter(|name| config.identities.contains_key(name))
-        .collect();
-    let location = git::optional(&["rev-parse", "--show-toplevel"])?.unwrap_or_else(|| {
-        std::env::current_dir()
-            .unwrap_or_default()
-            .display()
-            .to_string()
-    });
-
-    cliclack::intro(output::form_heading("Repository", &location))?;
-
-    let mut prompt = cliclack::multiselect("Which identities may use this repository?")
-        .initial_values(current)
-        .max_rows(7);
-
-    for (identity_name, identity) in &config.identities {
-        prompt = prompt.item(identity_name.clone(), identity_name, &identity.username);
+        assert!(decode(&values).unwrap().is_empty());
     }
 
-    let selected = prompt.interact()?;
-
-    authorize(config, &selected)?;
-    cliclack::outro("Allowed identities saved")?;
-
-    show(config)
-}
-
-pub fn show(config: &Config) -> Result<()> {
-    let allowed = stored()?;
-
-    output::section("Allowed identities");
-
-    if allowed.is_empty() {
-        output::row("Repository", "No identities selected", Color::Warning);
-    }
-
-    for identity_name in allowed {
-        match config.identity(&identity_name) {
-            Ok(identity) => output::row(&identity_name, &identity.username, Color::Value),
-            Err(_) => output::row(
-                &identity_name,
-                "Not configured; remove this permission or run mgh repo allowed update",
-                Color::Warning,
+    #[test]
+    fn explicit_permissions_normalize_names_and_take_precedence_over_pins() {
+        let values = BTreeMap::from([
+            (
+                ALLOWED.into(),
+                vec!["WORK".into(), "personal".into(), "Work".into()],
             ),
-        }
+            (CURRENT.into(), vec!["school".into()]),
+            ("ghguard.account".into(), vec!["other".into()]),
+        ]);
+
+        assert_eq!(
+            decode(&values).unwrap(),
+            BTreeSet::from(["personal".into(), "work".into()])
+        );
     }
 
-    println!();
+    #[test]
+    fn legacy_pins_must_agree_when_explicit_permissions_are_absent() {
+        let mut values = BTreeMap::from([
+            (CURRENT.into(), vec!["Personal".into()]),
+            ("ghguard.account".into(), vec!["personal".into()]),
+        ]);
+        assert_eq!(
+            decode(&values).unwrap(),
+            BTreeSet::from(["personal".into()])
+        );
 
-    Ok(())
+        values.insert("ghguard.account".into(), vec!["work".into()]);
+        assert!(
+            decode(&values)
+                .unwrap_err()
+                .to_string()
+                .contains("settings conflict")
+        );
+    }
 }

@@ -13,7 +13,7 @@ mgh setup
 
 An identity is a case-insensitive configured name, separate from its GitHub
 username and commit name. Use `mgh identity` to list them. `identity new` collects
-missing details with cliclack, verifies existing/browser login, privately saves
+missing details interactively, verifies existing/browser login, privately saves
 config, refreshes hooks/rules and selects the identity. `--username`, `--email`
 and `--name` support noninteractive creation; the name defaults to username.
 It does not expand repo permissions. Cancelled/invalid input, failed authentication,
@@ -113,8 +113,8 @@ mgh repo allowed update
 mgh switch personal
 ```
 
-The UI is a cliclack multiselect: arrows move, Space toggles, Enter saves at least
-one, Esc/Ctrl+C cancels. Saved selections start checked; longer lists scroll.
+Use arrows to move through identities, Space to select or deselect, and Enter to
+save at least one selection. Esc/Ctrl+C cancels. Current permissions are preselected.
 Adding/removing permissions preserves gh login. Removing the final permission
 blocks protected commits and pushes. Explicit empty permissions do not fall back
 to a previous selected identity.
@@ -135,21 +135,17 @@ allowed list. Read-only reports and guard checks do not rewrite configuration.
 `mgh settings autoswitch on|off` controls automatic selection globally, default OFF.
 Enable it once to apply to every repo; former per-repo autoswitch values are ignored.
 Enabling it checks the repo now. Shell entry/startup switches to one allowed
-identity unless already active. Several allowed identities always show a cliclack
-single-select picker, highlighting the current one when allowed. Cancellation and
-noninteractive multiple-choice entry do not switch accounts. Failures are reported
-without breaking startup. Missing permissions can be configured first when
-protections are on. Git commit/push hooks never perform automatic switching.
-
-After successful selection, autoswitch shows only the identity confirmation,
-GitHub account and global commit details. It omits subsequent repository/hook
-reports and successful global-config notices, even with verbose on. With one
-allowed identity it says it found only one and names the selection; if already
-active it reports that and avoids switching again. Failures remain visible.
+identity unless already active. With several allowed identities, it asks which
+one to use. Cancellation and noninteractive multiple-choice entry do not switch
+accounts. Failures are reported without breaking startup. Missing permissions can
+be configured first when protections are on. Git commit/push hooks never perform
+automatic switching.
 
 Switching changes gh authentication, global commit defaults and allowed local
 commit details. The active gh account is shared across terminals. Permissions stay
-unchanged. Explicit `mgh switch` is available inside or outside repos.
+unchanged. Explicit `mgh switch` is available inside or outside repos. Invalid or
+conflicting repository permissions stop switching before authentication or settings
+change. Correct the reported repository identity settings before retrying.
 
 ## Global settings and shell integration
 
@@ -171,10 +167,10 @@ eval "$(mgh shell init bash)"
 eval "$(mgh shell init zsh)"
 ```
 
-Fish watches PWD, Bash preserves existing PROMPT_COMMAND handlers, and Zsh uses
-chpwd. All check startup and ignore noninteractive shells. Restart or reload the
-shell configuration after installing. Generate completions with
-`mgh shell completions <shell>`; output remains unindented for shell consumption.
+Shell integration checks identities at interactive startup and when entering a
+repository. It preserves existing prompt handlers and skips noninteractive shells.
+Restart or reload the shell configuration after installing. Generate completions
+with `mgh shell completions <shell>`.
 
 Interactive `git init` runs Git first, then opens the allowed-identity checklist
 if protections are on and the initialized repo has no permissions. Space toggles
@@ -217,19 +213,16 @@ Git initialization prompts come from shell integration, since Git has no native
 initialization hook. See [shell integration](#global-settings-and-shell-integration)
 for supported calls and manual setup.
 
-## Diagnostics and output
+## Diagnostics
 
 `mgh status [--full]` is read-only and includes global identities and current repo
-status. `mgh doctor` diagnoses tools, config, authentication and hook readiness,
-returning failure if problems are found. Full gh reports preserve stdout/stderr
-and indent every line. In color-capable terminals, full reports retain GitHub CLI
-colors and bold text. `NO_COLOR`, `CLICOLOR=0`, dumb terminals and redirecting either
-output stream keep the full report plain. Headings and rows share an aligned
-value column without dot separators; long labels wrap to preserve alignment.
-Warnings indent continuation lines too. Changed values are highlighted;
-NO_COLOR, dumb terminals and redirected output suppress colors.
+status. Use `--full` to include the GitHub CLI authentication report.
+`mgh doctor` diagnoses tools, config, authentication and hook readiness, returning
+failure if problems are found. Unexpected Git/GitHub command failures are reported
+rather than treated as absent settings. The welcome greeting warns about
+conflicting repository identity settings.
 
-Setup/switch report global Git changes once and annotate changed entries with the
+Setup/switch report global Git changes and annotate changed entries with the
 originating command. Matching values retain existing comments. See
 [Hook integration](#hook-integration) for original hook forwarding,
 Husky integration, readiness checks, clone behavior and local-hook limitations.

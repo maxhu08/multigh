@@ -5,6 +5,10 @@ Details:
     separately. Global changes are reported and annotated with this command.
     The active gh account is shared across terminals.
 
+    Invalid or conflicting repository permissions stop switching before
+    authentication or settings change. Correct the reported repository identity
+    settings before retrying.
+
 Examples:
     mgh switch personal
     mgh repo allowed add work

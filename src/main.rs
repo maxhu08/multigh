@@ -8,7 +8,10 @@ mod hooks;
 mod output;
 mod policy;
 mod process;
+mod repository;
 mod settings;
+mod storage;
+mod terminal;
 
 use clap::Parser;
 

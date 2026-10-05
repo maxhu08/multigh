@@ -50,23 +50,8 @@ case "$1 $2" in
                 fi
                 ;;
             *)
-                if [ -f "$TEST_MGH_ROOT/styled-auth-report" ]; then
-                    if [ "$CLICOLOR_FORCE" = 1 ] && [ -z "${NO_COLOR+x}" ]; then
-                        printf '\033[1mAuthentication report\033[0m\n'
-                        printf 'github.com\n  \033[32m✓\033[0m Logged in as \033[1malice\033[0m\n' >&2
-                    else
-                        printf 'Authentication report\n'
-                        printf 'github.com\n  ✓ Logged in as alice\n' >&2
-                    fi
-                    [ -f "$TEST_MGH_ROOT/fail-full" ] && exit 1
-                    exit 0
-                fi
                 [ -f "$TEST_MGH_ROOT/fail-full" ] && exit 1
-                if [ -f "$TEST_MGH_ROOT/full-auth-report" ]; then
-                    cat "$TEST_MGH_ROOT/full-auth-report" >&2
-                else
-                    printf 'GitHub authentication details\n'
-                fi
+                printf 'GitHub authentication details\n'
                 ;;
         esac
         ;;

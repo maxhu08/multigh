@@ -98,8 +98,6 @@ fn setup_preserves_identity_configuration_enables_modes_and_reports_private_iden
     let configuration = fs::read(sandbox.path("config/multigh/identities.jsonc")).unwrap();
     let setup = sandbox.ok("mgh", &["setup"]);
 
-    assert!(setup.contains("Accounts                    "));
-    assert!(!setup.contains("Account file"));
     assert!(
         setup.contains(
             sandbox
@@ -115,11 +113,6 @@ fn setup_preserves_identity_configuration_enables_modes_and_reports_private_iden
         ));
 
         assert!(setup.contains(identity.to_str().unwrap()));
-        assert!(setup.contains(&format!(
-            "Identity ({identity_name}){}{}",
-            " ".repeat(28 - format!("Identity ({identity_name})").len()),
-            identity.display()
-        )));
         assert_eq!(
             fs::metadata(identity).unwrap().permissions().mode() & 0o777,
             0o600
@@ -223,43 +216,6 @@ fn setup_preserves_symlink_targets_and_unrecognized_managed_directory_files() {
 }
 
 #[test]
-fn setup_groups_paths_and_global_status_before_modes_and_indents_guidance() {
-    let sandbox = Sandbox::new();
-
-    for notice in ["Global Git config updated", "Global Git config unchanged"] {
-        let output = sandbox.ok("mgh", &["setup"]);
-        let global = format!(
-            "  Git config                  {}",
-            sandbox.path("gitconfig").display()
-        );
-        let identity = "  Identity (";
-
-        assert!(output.contains(&global), "{output}");
-        assert_eq!(output.matches(identity).count(), 2, "{output}");
-        assert_eq!(
-            output.matches("  Git config                  ").count(),
-            1,
-            "{output}"
-        );
-        assert!(output.find("Accounts").unwrap() < output.find(&global).unwrap());
-        assert!(output.find(&global).unwrap() < output.find(identity).unwrap());
-        assert!(output.rfind(identity).unwrap() < output.find(notice).unwrap());
-        assert!(output.find(notice).unwrap() < output.find("Protections").unwrap());
-        assert!(
-            output
-                .lines()
-                .filter(|line| !line.is_empty())
-                .all(|line| line.starts_with("  ")),
-            "{output}"
-        );
-        assert!(
-            output.contains("\n  Load mgh shell init <fish|bash|zsh>"),
-            "{output}"
-        );
-    }
-}
-
-#[test]
 fn setup_displays_the_global_file_selected_by_git_for_home_and_xdg_locations() {
     for (home, xdg) in [(false, false), (true, false), (false, true), (true, true)] {
         let sandbox = Sandbox::new();
@@ -333,20 +289,4 @@ fn onboarding_collects_a_first_identity_and_prints_next_steps() {
     )
     .unwrap();
     assert_eq!(config["personal"]["username"], "alice");
-}
-
-#[test]
-fn setup_outside_a_repository_explains_default_protections() {
-    let sandbox = Sandbox::new();
-    let output = sandbox
-        .command("mgh")
-        .current_dir(sandbox.path("home"))
-        .arg("setup")
-        .output()
-        .unwrap();
-
-    assert!(output.status.success());
-    let text = String::from_utf8_lossy(&output.stdout);
-    assert!(text.contains("Protections                 ON by default"));
-    assert!(text.contains("use mgh repo protections off for a repo exception"));
 }

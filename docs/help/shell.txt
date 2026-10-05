@@ -1,6 +1,6 @@
 Details:
     Generate integration for interactive startup, directory changes and git init,
-    or tab completions. Output is intended for your shell, so it is not indented.
+    or tab completions. Load the integration from your shell configuration.
     These commands do not require identity config or GitHub authentication.
 
 Examples:

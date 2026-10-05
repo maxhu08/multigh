@@ -1,4 +1,5 @@
 mod edit;
+mod form;
 pub(super) mod new;
 
 use crate::{cli::IdentityCommand, config::Config};
@@ -11,7 +12,7 @@ pub fn run(path: PathBuf, command: Option<IdentityCommand>) -> Result<()> {
         IdentityCommand::New { identity, fields } => {
             new::run(path, identity, fields.username, fields.email, fields.name)
         }
-        IdentityCommand::Edit { identity, fields } => edit::run(path, &identity, Some(fields)),
-        IdentityCommand::Remove { identity } => edit::run(path, &identity, None),
+        IdentityCommand::Edit { identity, fields } => edit::edit(path, &identity, fields),
+        IdentityCommand::Remove { identity } => edit::remove(path, &identity),
     }
 }

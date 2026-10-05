@@ -1,3 +1,5 @@
+pub mod editor;
+
 use anyhow::{Context, Result, bail, ensure};
 use jsonc_parser::ParseOptions;
 use serde::{
@@ -17,9 +19,28 @@ pub struct Identity {
     pub allowed_emails: BTreeSet<String>,
 }
 
+impl Identity {
+    pub fn matches_username(&self, username: &str) -> bool {
+        self.username.eq_ignore_ascii_case(username)
+    }
+
+    pub fn accepts_email(&self, email: &str) -> bool {
+        self.allowed_emails.contains(&email.to_ascii_lowercase())
+    }
+
+    pub fn matches_commit(&self, name: &str, email: &str) -> bool {
+        name == self.commit_name && self.accepts_email(email)
+    }
+}
+
 pub struct Config {
     pub path: PathBuf,
     pub identities: BTreeMap<String, Identity>,
+}
+
+pub struct CommitDetails {
+    pub name: String,
+    pub email: String,
 }
 
 #[derive(Deserialize)]
@@ -96,22 +117,11 @@ pub const JSONC: ParseOptions = ParseOptions {
     allow_extended_string_escapes: false,
 };
 
-pub fn directory(variable: &str, fallback: &str) -> Result<PathBuf> {
-    if let Some(value) = env::var_os(variable).filter(|value| !value.is_empty()) {
-        return Ok(PathBuf::from(value));
-    }
-
-    let home = env::var_os("HOME")
-        .or_else(|| env::var_os("USERPROFILE"))
-        .context("Cannot locate your home directory")?;
-
-    Ok(PathBuf::from(home).join(fallback))
-}
-
 pub fn path(explicit: Option<PathBuf>) -> Result<PathBuf> {
     let path = match explicit {
         Some(path) => path,
-        None => directory("XDG_CONFIG_HOME", ".config")?.join("multigh/identities.jsonc"),
+        None => crate::storage::directory("XDG_CONFIG_HOME", ".config")?
+            .join("multigh/identities.jsonc"),
     };
 
     Ok(if path.is_absolute() {
@@ -129,7 +139,12 @@ impl Config {
                 path.display()
             )
         })?;
-        let Definitions(parsed) = jsonc_parser::parse_to_serde_value(&text, &JSONC)
+
+        Self::parse(path, &text)
+    }
+
+    pub fn parse(path: PathBuf, text: &str) -> Result<Self> {
+        let Definitions(parsed) = jsonc_parser::parse_to_serde_value(text, &JSONC)
             .with_context(|| format!("Read {}: invalid identity configuration", path.display()))?;
         let mut identities = BTreeMap::new();
 
@@ -180,10 +195,10 @@ impl Config {
             }
 
             ensure!(
-                !identities.values().any(|other: &Identity| other
-                    .username
-                    .eq_ignore_ascii_case(&username)
-                    || !other.allowed_emails.is_disjoint(&emails)),
+                !identities
+                    .values()
+                    .any(|other: &Identity| other.matches_username(&username)
+                        || !other.allowed_emails.is_disjoint(&emails)),
                 "Identities cannot share usernames or email addresses"
             );
 
@@ -213,5 +228,12 @@ impl Config {
                     .join(", ")
             ),
         }
+    }
+
+    pub fn identity_for_username(&self, username: &str) -> Option<(&str, &Identity)> {
+        self.identities
+            .iter()
+            .find(|(_, identity)| identity.matches_username(username))
+            .map(|(name, identity)| (name.as_str(), identity))
     }
 }

@@ -1,6 +1,6 @@
 Details:
     Add a global case-insensitive identity. Prompt for missing identity name,
-    GitHub username, commit name and commit email using cliclack. Commit name
+    GitHub username, commit name and commit email. Commit name
     defaults to the username. Noninteractive use requires identity, --username
     and --email. Esc or Ctrl+C cancels without saving. Existing comments and
     formatting are preserved; symlinks require --config with their target.

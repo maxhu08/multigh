@@ -4,10 +4,10 @@ Details:
     permission. Names are case insensitive and repeated additions do not
     duplicate entries. Removing the final permission leaves the repo blocked.
 
-    update takes no arguments and opens a cliclack checklist. Use arrows to move,
+    update takes no arguments and opens a checklist. Use arrows to move,
     Space to select/deselect, Enter to save at least one identity, or Esc/Ctrl+C
     to cancel. Current selections start checked. Forms need terminal input,
-    stdout and stderr and honor NO_COLOR. These commands do not switch gh login.
+    stdout and stderr. These commands do not switch gh login.
 
 Examples:
     mgh repo allowed

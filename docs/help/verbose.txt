@@ -3,7 +3,6 @@ Details:
     interactive terminal startup across all repos. Requires shell integration.
     With no state, report the global preference. off suppresses informational
     reports; protection problems and autoswitch prompts remain visible.
-    Successful autoswitch omits subsequent verbose reports to keep its result brief.
 
 Examples:
     mgh settings verbose on

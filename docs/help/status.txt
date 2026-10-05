@@ -3,10 +3,8 @@ Details:
     allowed identities, commit details, protections and global autoswitch state.
     Read global identities and live GitHub authentication, then show this repo's
     allowed identities, effective commit details and hook readiness when inside
-    Git. Status does not mutate configuration. --full includes gh auth status,
-    with every report line indented and both output streams preserved. Terminal
-    colors and bold text are retained; NO_COLOR, CLICOLOR=0, dumb terminals and
-    redirected output keep the full report plain.
+    Git. Status does not mutate configuration. --full includes the GitHub CLI
+    authentication report.
     Repo-only status is available as mgh repo status. Use doctor for diagnostics.
 
 Examples:

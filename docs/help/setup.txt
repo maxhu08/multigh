@@ -1,10 +1,10 @@
 Details:
     Guide first-time setup by collecting the first identity through the same
-    cliclack form as mgh identity new. Missing config is created privately after
+    prompts as mgh identity new. Missing config is created privately after
     validation and successful GitHub authentication. With an existing populated
     config, refresh identity rules and shared hooks without overwriting it.
-    Print config paths, changed/unchanged global Git notices, shell integration
-    commands and the next steps: identity new and repo allowed update.
+    Print config paths, shell integration commands and the next steps:
+    identity new and repo allowed update.
 
     Protections default ON in every repo. An explicit repo protections off
     remains OFF after setup. Initial setup enables verbose; subsequent setup

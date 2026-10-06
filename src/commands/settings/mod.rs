@@ -26,6 +26,10 @@ pub fn report(preference: Preference) -> Result<()> {
             "Show allowed identities when entering a repo or starting a terminal there.",
         ),
     };
+
+    if preference == Preference::Autoswitch {
+        println!();
+    }
     output::row(
         label,
         if enabled { "ON" } else { "OFF" },

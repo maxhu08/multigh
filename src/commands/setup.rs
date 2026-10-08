@@ -30,43 +30,53 @@ pub fn run(path: PathBuf) -> Result<()> {
         );
         output::section("Set up multigh");
         output::row("Accounts", &path.to_string_lossy(), Color::Muted);
-        let (config, name) = super::identity::new::create(path, None, None, None, None)?;
+        let (config, name) = super::identity::new::create(path, None, Default::default())?;
         super::identity::new::report(&config, &name);
         (config, Some(name))
     };
 
-    let result: Result<()> = (|| {
-        let repository = Repository::discover()?;
-        git::global::update("mgh setup", |global| {
-            let directory = install(&config, repository.as_ref(), global)?;
-            report(&config, repository.as_ref(), &directory, global)
-        })?;
-
-        if let Some(name) = &first_identity {
-            git::global::update(&format!("mgh switch {name}"), |global| {
-                let selected = super::switch::select(&config, name, repository.as_ref(), global)?;
-                super::switch::report(&config, repository.as_ref(), &selected, true)
-            })?;
-        }
-        Ok(())
-    })();
-
-    if let Some(name) = &first_identity {
-        result.with_context(|| super::identity::new::recovery_instructions(&config, name))?;
-    } else {
-        result?;
-    }
+    configure(&config, first_identity.as_deref())?;
 
     println!("  Add more identities: mgh identity new");
     println!("  Choose permissions in a repo: mgh repo allowed update\n");
     Ok(())
 }
 
+pub(super) fn configure(config: &Config, first_identity: Option<&str>) -> Result<()> {
+    let result: Result<()> = (|| {
+        let repository = Repository::discover()?;
+        super::global::update("mgh setup", |global, reporting| {
+            let directory = install(config, repository.as_ref(), global)?;
+            report(config, repository.as_ref(), &directory, global, reporting)
+        })?;
+
+        if let Some(name) = first_identity {
+            super::global::update(&format!("mgh switch {name}"), |global, _| {
+                let selected = super::switch::select(config, name, repository.as_ref(), global)?;
+                super::switch::report(
+                    config,
+                    repository.as_ref(),
+                    &selected,
+                    super::switch::ReportDetail::Detailed,
+                )
+            })?;
+        }
+        Ok(())
+    })();
+
+    if let Some(name) = first_identity {
+        result.with_context(|| super::identity::new::recovery_instructions(config, name))
+    } else {
+        result
+    }
+}
+
 pub(super) fn report(
     config: &Config,
     repository: Option<&Repository>,
     directory: &Path,
-    global: &mut git::global::Writer<'_>,
+    global: &git::global::Writer<'_>,
+    reporting: &mut super::global::Report,
 ) -> Result<()> {
     output::section("✓ Identity rules updated");
     output::row("Accounts", &config.path.to_string_lossy(), Color::Muted);
@@ -78,11 +88,11 @@ pub(super) fn report(
     for name in config.identities.keys() {
         output::row(
             &format!("Identity ({name})"),
-            &directory.join(format!("git-{name}.conf")).to_string_lossy(),
+            &git::identity_files::path(directory, name).to_string_lossy(),
             Color::Changed,
         );
     }
-    global.report();
+    reporting.print(global);
     if let Some(repository) = repository {
         super::repo::report(repository)?;
     } else {

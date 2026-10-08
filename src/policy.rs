@@ -1,9 +1,10 @@
 use crate::{
     config::{Config, Identity},
+    git::Scope,
     github,
     repository::Repository,
 };
-use anyhow::{Result, bail, ensure};
+use anyhow::{Context, Result, ensure};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const ALLOWED: &str = "mgh.allowed-identity";
@@ -85,22 +86,22 @@ pub fn active<'a>(
         "No identities are authorized for this repository.\nRun: mgh repo allowed update"
     );
 
-    let identity_name = allowed
-        .iter()
-        .find(|identity_name| config.identities[*identity_name].matches_username(login));
+    let mut active = None;
+    for identity_name in allowed {
+        let identity = config.identity(identity_name)?;
+        if active.is_none() && identity.matches_username(login) {
+            active = Some((identity_name.as_str(), identity));
+        }
+    }
 
-    let Some(identity_name) = identity_name else {
-        bail!(
+    active.with_context(|| format!(
             "GitHub is using {login}, which is not allowed in this repository.\nAllowed identities: {}\nRun: mgh switch <allowed-identity>",
             allowed
                 .iter()
                 .map(String::as_str)
                 .collect::<Vec<_>>()
                 .join(", ")
-        );
-    };
-
-    Ok((identity_name, &config.identities[identity_name]))
+        ))
 }
 
 pub fn apply_identity(
@@ -109,9 +110,9 @@ pub fn apply_identity(
     identity: &Identity,
 ) -> Result<()> {
     migrate(repository)?;
-    repository.set("--local", "user.name", &identity.commit_name)?;
-    repository.set("--local", "user.email", &identity.commit_email)?;
-    repository.set("--local", CURRENT, &identity_name.to_ascii_lowercase())?;
+    repository.set(Scope::Local, "user.name", &identity.commit_name)?;
+    repository.set(Scope::Local, "user.email", &identity.commit_email)?;
+    repository.set(Scope::Local, CURRENT, &identity_name.to_ascii_lowercase())?;
 
     Ok(())
 }
@@ -121,6 +122,10 @@ pub fn authorize(
     config: &Config,
     identity_names: &BTreeSet<String>,
 ) -> Result<()> {
+    ensure!(
+        !identity_names.is_empty(),
+        "Authorization requires at least one identity"
+    );
     for identity_name in identity_names {
         config.identity(identity_name)?;
     }
@@ -165,8 +170,26 @@ pub fn save(repository: &Repository, identity_names: &BTreeSet<String>) -> Resul
 
 #[cfg(test)]
 mod tests {
-    use super::{ALLOWED, CURRENT, decode};
+    use super::{ALLOWED, CURRENT, active, decode};
+    use crate::config::Config;
     use std::collections::{BTreeMap, BTreeSet};
+
+    #[test]
+    fn active_rejects_unvalidated_permissions_even_when_the_login_matches() {
+        let config = Config::parse(
+            "identities.jsonc".into(),
+            r#"{"personal":{"username":"alice","commit":{"email":"alice@example.com"}}}"#,
+        )
+        .unwrap();
+
+        for names in [
+            BTreeSet::from(["stale".into()]),
+            BTreeSet::from(["personal".into(), "stale".into()]),
+        ] {
+            let error = active(&config, &names, "alice").err().unwrap();
+            assert!(error.to_string().contains("Unknown identity 'stale'"));
+        }
+    }
 
     #[test]
     fn explicit_empty_permissions_override_every_legacy_fallback() {

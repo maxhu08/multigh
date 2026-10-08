@@ -16,9 +16,12 @@ pub fn run(path: PathBuf, command: Option<RepoCommand>) -> Result<()> {
     let repository = Repository::require()?;
 
     match command.unwrap_or(RepoCommand::Status) {
-        RepoCommand::Status => {
-            super::status::repository(&repository, &Config::load(path)?, &github::active()?, None)
-        }
+        RepoCommand::Status => super::status::repository(
+            &repository,
+            &Config::load(path)?,
+            Some(&github::active()?),
+            None,
+        ),
         RepoCommand::Check => guard::check(&repository, &Config::load(path)?),
         RepoCommand::Allowed { command } => {
             allowed::run(&repository, &Config::load(path)?, command)
@@ -28,12 +31,12 @@ pub fn run(path: PathBuf, command: Option<RepoCommand>) -> Result<()> {
                 policy::migrate(&repository)?;
                 let enabled = matches!(state, Toggle::On);
                 if enabled {
-                    git::global::update("mgh repo protections on", |global| {
+                    super::global::update("mgh repo protections on", |global, _| {
                         hooks::install::run(&Config::load(path.clone())?, Some(&repository), global)
                     })?;
                 }
                 repository.set(
-                    "--local",
+                    git::Scope::Local,
                     "mgh.protections",
                     if enabled { "true" } else { "false" },
                 )?;

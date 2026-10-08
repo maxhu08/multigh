@@ -2,6 +2,79 @@ use crate::support::{Sandbox, terminal};
 use std::fs;
 
 #[test]
+fn edit_authenticates_the_validated_username_without_an_unnecessary_login() {
+    let sandbox = Sandbox::new();
+    let local = fs::read(sandbox.path("repo/.git/config")).unwrap();
+
+    sandbox.ok(
+        "mgh",
+        &["identity", "edit", "PERSONAL", "--username", " alice "],
+    );
+
+    assert_eq!(local, fs::read(sandbox.path("repo/.git/config")).unwrap());
+    let calls = fs::read_to_string(sandbox.path("gh-calls")).unwrap();
+    assert!(!calls.contains("auth login"), "{calls}");
+    assert!(!calls.contains("auth switch"), "{calls}");
+    assert!(sandbox.ok("mgh", &["identity", "list"]).contains("alice"));
+}
+
+#[test]
+fn edit_preserves_account_query_errors_without_starting_browser_login() {
+    for failure in ["malformed", "process"] {
+        let sandbox = Sandbox::new();
+        let original = fs::read(sandbox.path("config/multigh/identities.jsonc")).unwrap();
+        let global = fs::read(sandbox.path("gitconfig")).unwrap();
+        if failure == "malformed" {
+            sandbox.write("accounts-json", "invalid json");
+        } else {
+            sandbox.write("fail-auth", "");
+        }
+
+        sandbox.blocked(
+            "mgh",
+            &["identity", "edit", "personal", "--name", "Updated Name"],
+            if failure == "malformed" {
+                "expected value"
+            } else {
+                "gh:"
+            },
+        );
+
+        assert_eq!(
+            original,
+            fs::read(sandbox.path("config/multigh/identities.jsonc")).unwrap()
+        );
+        assert_eq!(global, fs::read(sandbox.path("gitconfig")).unwrap());
+        let calls = fs::read_to_string(sandbox.path("gh-calls")).unwrap();
+        assert!(!calls.contains("auth login"), "{calls}");
+    }
+}
+
+#[test]
+fn edit_preserves_errors_from_the_account_check_after_browser_login() {
+    let sandbox = Sandbox::new();
+    let original = fs::read(sandbox.path("config/multigh/identities.jsonc")).unwrap();
+    sandbox.write("accounts-json", "[]");
+    sandbox.write("login-accounts-json", "invalid json");
+
+    sandbox.blocked(
+        "mgh",
+        &["identity", "edit", "personal", "--username", "carol"],
+        "expected value",
+    );
+
+    assert_eq!(
+        original,
+        fs::read(sandbox.path("config/multigh/identities.jsonc")).unwrap()
+    );
+    assert!(
+        fs::read_to_string(sandbox.path("gh-calls"))
+            .unwrap()
+            .contains("auth login")
+    );
+}
+
+#[test]
 fn identity_edit_and_remove_preserve_comments_permissions_and_other_identities() {
     let sandbox = Sandbox::new();
     sandbox.protect();

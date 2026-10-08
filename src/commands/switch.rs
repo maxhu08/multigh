@@ -10,9 +10,14 @@ pub fn run(config: &Config, identity_name: &str) -> Result<()> {
     let repository = Repository::discover()?;
     let command = format!("mgh switch {identity_name}");
 
-    git::global::update(&command, |global| {
+    super::global::update(&command, |global, _| {
         let selected = select(config, identity_name, repository.as_ref(), global)?;
-        report(config, repository.as_ref(), &selected, true)
+        report(
+            config,
+            repository.as_ref(),
+            &selected,
+            ReportDetail::Detailed,
+        )
     })
 }
 
@@ -69,11 +74,16 @@ pub(super) fn select<'a>(
     })
 }
 
+pub(super) enum ReportDetail {
+    Brief,
+    Detailed,
+}
+
 pub(super) fn report(
     config: &Config,
     repository: Option<&Repository>,
     selected: &SwitchResult<'_>,
-    detailed: bool,
+    detail: ReportDetail,
 ) -> Result<()> {
     output::heading(
         "✓ Identity selected",
@@ -97,11 +107,13 @@ pub(super) fn report(
         &selected.identity.commit_email,
     );
 
-    if detailed && let Some(repository) = repository {
+    if matches!(detail, ReportDetail::Detailed)
+        && let Some(repository) = repository
+    {
         super::status::repository(
             repository,
             config,
-            &selected.identity.username,
+            Some(&selected.identity.username),
             selected.previous_effective.as_ref(),
         )?;
     }

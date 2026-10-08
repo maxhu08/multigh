@@ -22,12 +22,41 @@ authentication, commit details and repository identity protections aligned.
 - Use existing dependencies and the standard library before adding a crate.
 - Every line should serve a clear purpose.
 
+### Maintainable Boundaries
+
+- Use booleans for binary properties. Use enums for modes, operations
+  and outcomes whose meaning would otherwise depend on a flag or its caller.
+  Give distinct states distinct representations.
+- Distinguish missing data, valid values and failures explicitly. Do not use valid
+  values or display placeholders as sentinels in business logic.
+- Group related values in small named data structures when positional arguments
+  obscure their meaning. Reuse existing domain types; do not introduce abstractions
+  without a concrete benefit.
+- Keep validation and normalization in one owning layer; use the validated values
+  consistently for subsequent operations. Make helper preconditions explicit and
+  enforce them through types or checks at the appropriate boundary rather than
+  relying on a particular call order.
+- Preserve unexpected errors with useful context. Do not turn failures into false,
+  empty or default values that drive decisions. Optional fallbacks must distinguish
+  unavailable information from confirmed absence.
+- Keep core behavior separate from presentation. Preserve accurate outcome
+  information on both success and failure, including partial completion.
+- Share repeated rules, workflows and derived paths or identifiers through narrow
+  helpers in their owning modules. Simplify deeply nested control flow with early
+  exits or focused helpers when that improves readability; preserve behavior and
+  operation ordering.
+- Use existing domain types for constrained options and identifiers rather than
+  passing unchecked strings or constructing them independently at each call site.
+
 ### Surgical Changes
 
 - Keep every change tied to the request. Preserve unrelated work.
 - Match the existing style; avoid adjacent cleanup or refactoring unless needed.
 - Remove imports, variables and functions made unused by your changes.
 - Mention unrelated problems instead of expanding the task to fix them.
+- For maintainability refactors, preserve public interfaces, persisted data and
+  integration contracts unless the requested change requires otherwise. Identify
+  intentional behavior corrections and compatibility impacts separately.
 
 ### Goal-Driven Execution
 
@@ -96,6 +125,9 @@ authentication, commit details and repository identity protections aligned.
   `tests/guards/`, `tests/hooks/` and `tests/shell/`. Reuse shared fixtures and helpers.
 - Cover successful operations, rejected operations and preservation of existing
   settings where relevant. Use terminal tests for keyboard-driven behavior.
+- Assert report content independently of padding in behavior tests; use focused
+  output tests for layout. Keep exact assertions when formatting or byte-for-byte
+  preservation is part of the contract.
 - See [the testing guide](docs/testing.md) for prerequisites and focused runs.
 
 ## Checks

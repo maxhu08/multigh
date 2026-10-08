@@ -6,7 +6,9 @@ Details:
     formatting are preserved; symlinks require --config with their target.
 
     Reuse an existing successful gh login, or open browser authentication and
-    verify the requested username. Save privately and atomically, refresh setup
+    verify the validated, trimmed username. Unexpected account-query failures
+    stop with their cause instead of opening browser authentication.
+    Save privately and atomically, refresh setup
     and select the identity. Failed authentication or concurrent config edits
     preserve the original config. If refresh/switch fails after saving, report
     recovery instructions. Repository permissions remain unchanged; use

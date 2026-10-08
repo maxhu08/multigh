@@ -87,7 +87,11 @@ pub fn integrate(repository: &Repository) -> Result<bool> {
         return Ok(false);
     }
 
-    let Some((scope, original)) = readiness::setting(repository)? else {
+    let Some(readiness::HookSetting {
+        scope,
+        path: original,
+    }) = readiness::setting(repository)?
+    else {
         return Ok(false);
     };
 
@@ -97,14 +101,12 @@ pub fn integrate(repository: &Repository) -> Result<bool> {
         return readiness::installed(repository);
     }
 
-    if !["local", "worktree"].contains(&scope.as_str()) {
+    if !matches!(scope, git::Scope::Local | git::Scope::Worktree) {
         return Ok(false);
     }
 
-    let scope = format!("--{scope}");
-
-    repository.set(&scope, "mgh.originalHooksPath", &original.to_string_lossy())?;
-    repository.set(&scope, "core.hooksPath", &shared.to_string_lossy())?;
+    repository.set(scope, "mgh.originalHooksPath", &original.to_string_lossy())?;
+    repository.set(scope, "core.hooksPath", &shared.to_string_lossy())?;
 
     readiness::installed(repository)
 }

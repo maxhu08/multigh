@@ -12,11 +12,16 @@ pub enum Color {
     Error,
 }
 
-pub fn color_enabled(error: bool) -> bool {
-    let terminal = if error {
-        io::stderr().is_terminal()
-    } else {
-        io::stdout().is_terminal()
+#[derive(Clone, Copy)]
+pub enum Stream {
+    Stdout,
+    Stderr,
+}
+
+pub fn color_enabled(stream: Stream) -> bool {
+    let terminal = match stream {
+        Stream::Stdout => io::stdout().is_terminal(),
+        Stream::Stderr => io::stderr().is_terminal(),
     };
 
     terminal
@@ -24,8 +29,8 @@ pub fn color_enabled(error: bool) -> bool {
         && !env::var("TERM").is_ok_and(|term| term == "dumb")
 }
 
-pub fn paint(value: &str, color: Color, error: bool) -> String {
-    if !color_enabled(error) {
+pub fn paint(value: &str, color: Color, stream: Stream) -> String {
+    if !color_enabled(stream) {
         return value.to_owned();
     }
 
@@ -42,7 +47,7 @@ pub fn paint(value: &str, color: Color, error: bool) -> String {
 }
 
 pub fn section(title: &str) {
-    println!("\n  {}", paint(title, Color::Heading, false));
+    println!("\n  {}", paint(title, Color::Heading, Stream::Stdout));
 }
 
 fn columns(label: &str, value: &str, color: Color, indent: usize) -> String {
@@ -58,7 +63,7 @@ fn columns(label: &str, value: &str, color: Color, indent: usize) -> String {
     format!(
         "{:indent$}{}{gap}{}",
         "",
-        paint(label, color, false),
+        paint(label, color, Stream::Stdout),
         value.replace('\n', &format!("\n{:VALUE_COLUMN$}", ""))
     )
 }
@@ -66,7 +71,12 @@ fn columns(label: &str, value: &str, color: Color, indent: usize) -> String {
 pub fn heading(label: &str, value: &str, color: Color) {
     println!(
         "\n{}",
-        columns(label, &paint(value, color, false), Color::Heading, 2)
+        columns(
+            label,
+            &paint(value, color, Stream::Stdout),
+            Color::Heading,
+            2
+        )
     );
 }
 
@@ -83,7 +93,12 @@ pub fn row(label: &str, value: &str, color: Color) {
 pub fn nested_row(label: &str, value: &str, color: Color, indent: usize) {
     println!(
         "{}",
-        columns(label, &paint(value, color, false), Color::Muted, indent)
+        columns(
+            label,
+            &paint(value, color, Stream::Stdout),
+            Color::Muted,
+            indent
+        )
     );
 }
 
@@ -100,9 +115,9 @@ pub fn change(label: &str, before: &str, after: &str) {
                     before
                 },
                 Color::Muted,
-                false
+                Stream::Stdout
             ),
-            paint(after, Color::Changed, false)
+            paint(after, Color::Changed, Stream::Stdout)
         );
         println!("{}", columns(label, &value, Color::Muted, 2));
     }
@@ -114,7 +129,7 @@ pub fn warning(message: &str) {
         paint(
             &format!("⚠ {}", message.replace('\n', "\n  ")),
             Color::Warning,
-            false
+            Stream::Stdout
         )
     );
 }
@@ -122,17 +137,16 @@ pub fn warning(message: &str) {
 pub fn error(message: &str) {
     eprintln!(
         "\n  {}\n  {}\n",
-        paint("✕ mgh", Color::Error, true),
+        paint("✕ mgh", Color::Error, Stream::Stderr),
         message.replace('\n', "\n\n  ")
     );
 }
 
-pub fn block(value: &str, error: bool) {
+pub fn block(value: &str, stream: Stream) {
     for line in value.lines() {
-        if error {
-            eprintln!("  {line}");
-        } else {
-            println!("  {line}");
+        match stream {
+            Stream::Stdout => println!("  {line}"),
+            Stream::Stderr => eprintln!("  {line}"),
         }
     }
 }

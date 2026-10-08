@@ -3,7 +3,9 @@ Details:
     prompt with existing values as defaults. Supplied flags edit
     only those fields. Preserve other identities, JSONC comments, formatting and
     additional emails. Validate before saving; verify GitHub login for the chosen
-    username. Cancelled input, invalid values and failed login do not save.
+    username after trimming surrounding whitespace. Unexpected account-query
+    failures stop with their cause instead of opening browser authentication.
+    Cancelled input, invalid values and failed login do not save.
     Refresh generated identity rules without expanding any repo's permissions
     or switching its account. Run mgh switch <identity> to apply local details.
 

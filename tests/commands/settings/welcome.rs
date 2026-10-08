@@ -2,6 +2,41 @@ use crate::support::Sandbox;
 use std::fs;
 
 #[test]
+fn welcome_distinguishes_a_login_named_unavailable_from_no_selection() {
+    let sandbox = Sandbox::new();
+    sandbox.write(
+        "config/multigh/identities.jsonc",
+        r#"{"personal":{"username":"unavailable","commit":{"email":"personal@example.com"}}}"#,
+    );
+    sandbox.ok("mgh", &["settings", "welcome", "on"]);
+    sandbox.ok("mgh", &["repo", "allowed", "add", "personal"]);
+    sandbox.write("selected", "unavailable\n");
+
+    let selected = sandbox.ok("mgh", &["internal", "welcome"]);
+    assert!(
+        selected
+            .lines()
+            .any(|line| line.trim_start().starts_with("Identity")
+                && line.trim_end().ends_with("personal")),
+        "{selected}"
+    );
+
+    sandbox.write("fail-selected", "");
+    let missing = sandbox.ok("mgh", &["internal", "welcome"]);
+    assert!(
+        missing
+            .lines()
+            .any(|line| line.trim_start().starts_with("Identity")
+                && line.trim_end().ends_with("not configured")),
+        "{missing}"
+    );
+    assert!(
+        missing.contains("This repository needs: mgh switch personal"),
+        "{missing}"
+    );
+}
+
+#[test]
 fn welcome_reports_conflicting_legacy_policy_without_rewriting_it() {
     let sandbox = Sandbox::new();
     sandbox.ok("mgh", &["settings", "welcome", "on"]);

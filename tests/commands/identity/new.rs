@@ -13,6 +13,26 @@ const ARGS: &[&str] = &[
 ];
 
 #[test]
+fn new_authenticates_for_missing_or_expired_github_accounts() {
+    for accounts in ["[]", r#"[{"login":"carol","state":"error"}]"#] {
+        let sandbox = Sandbox::new();
+        sandbox.write("accounts-json", accounts);
+        sandbox.write("login-accounts-json", LOGIN);
+
+        sandbox.ok("mgh", ARGS);
+
+        let calls = fs::read_to_string(sandbox.path("gh-calls")).unwrap();
+        assert!(calls.contains("auth login"), "{calls}");
+        assert!(calls.contains("auth switch"), "{calls}");
+        assert!(
+            fs::read_to_string(sandbox.path("config/multigh/identities.jsonc"))
+                .unwrap()
+                .contains("\"work\"")
+        );
+    }
+}
+
+#[test]
 fn new_authenticates_preserves_existing_data_and_comments_and_sets_up_the_identity() {
     let sandbox = Sandbox::new();
     let original = format!(

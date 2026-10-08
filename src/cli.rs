@@ -97,7 +97,7 @@ pub enum Command {
     },
 }
 
-#[derive(Args)]
+#[derive(Args, Default)]
 pub struct IdentityFields {
     #[arg(
         long,

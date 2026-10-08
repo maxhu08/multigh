@@ -1,15 +1,21 @@
 use crate::{
     config::Config,
-    git, github, policy,
+    github, policy,
     repository::Repository,
     utils::{output, terminal},
 };
 use anyhow::{Result, ensure};
 
-pub fn select(repository: &Repository, config: &Config) -> Result<bool> {
+pub enum Selection {
+    None,
+    AlreadyActive,
+    Switched,
+}
+
+pub fn select(repository: &Repository, config: &Config) -> Result<Selection> {
     let allowed = policy::allowed(repository, config)?;
     if allowed.is_empty() {
-        return Ok(false);
+        return Ok(Selection::None);
     }
     let login = github::selected()?;
     let current = allowed.iter().find(|name| {
@@ -32,7 +38,7 @@ pub fn select(repository: &Repository, config: &Config) -> Result<bool> {
 
         if current.is_some() {
             println!();
-            return Ok(true);
+            return Ok(Selection::AlreadyActive);
         }
 
         name.clone()
@@ -53,12 +59,17 @@ pub fn select(repository: &Repository, config: &Config) -> Result<bool> {
         cliclack::outro("Identity chosen")?;
         selected
     };
-    git::global::update(&format!("mgh switch {name}"), |global| {
+    super::super::global::update(&format!("mgh switch {name}"), |global, report| {
         let selected = super::super::switch::select(config, &name, Some(repository), global)?;
-        super::super::switch::report(config, Some(repository), &selected, false)?;
-        global.suppress_report();
+        super::super::switch::report(
+            config,
+            Some(repository),
+            &selected,
+            super::super::switch::ReportDetail::Brief,
+        )?;
+        report.suppress();
         Ok(())
     })?;
 
-    Ok(true)
+    Ok(Selection::Switched)
 }

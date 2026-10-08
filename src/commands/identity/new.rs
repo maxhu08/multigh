@@ -1,43 +1,25 @@
 use crate::{
-    config::{Config, editor::Editor},
-    git, github,
-    repository::Repository,
+    cli::IdentityFields,
+    config::{
+        CommitDetails, Config,
+        editor::{Editor, IdentityInput},
+    },
+    github,
     utils::{output, process, terminal},
 };
-use anyhow::{Context, Result, ensure};
+use anyhow::{Result, ensure};
 use std::path::PathBuf;
 
-pub fn run(
-    path: PathBuf,
-    identity_name: Option<String>,
-    username: Option<String>,
-    commit_email: Option<String>,
-    commit_name: Option<String>,
-) -> Result<()> {
-    let (config, identity_name) = create(path, identity_name, username, commit_email, commit_name)?;
+pub fn run(path: PathBuf, identity_name: Option<String>, fields: IdentityFields) -> Result<()> {
+    let (config, identity_name) = create(path, identity_name, fields)?;
     report(&config, &identity_name);
-    let result: Result<()> = (|| {
-        let repository = Repository::discover()?;
-        git::global::update("mgh setup", |global| {
-            let directory = super::super::setup::install(&config, repository.as_ref(), global)?;
-            super::super::setup::report(&config, repository.as_ref(), &directory, global)
-        })?;
-        git::global::update(&format!("mgh switch {identity_name}"), |global| {
-            let selected =
-                super::super::switch::select(&config, &identity_name, repository.as_ref(), global)?;
-            super::super::switch::report(&config, repository.as_ref(), &selected, true)
-        })
-    })();
-
-    result.with_context(|| recovery_instructions(&config, &identity_name))
+    super::super::setup::configure(&config, Some(&identity_name))
 }
 
 pub(in crate::commands) fn create(
     path: PathBuf,
     identity_name: Option<String>,
-    username: Option<String>,
-    commit_email: Option<String>,
-    commit_name: Option<String>,
+    fields: IdentityFields,
 ) -> Result<(Config, String)> {
     let editor = Editor::open(path)?;
 
@@ -49,9 +31,9 @@ pub(in crate::commands) fn create(
 
     let identity_name =
         super::form::field(identity_name, "Identity name", None)?.to_ascii_lowercase();
-    let username = super::form::field(username, "GitHub username", None)?;
-    let commit_name = super::form::field(commit_name, "Commit name", Some(&username))?;
-    let commit_email = super::form::field(commit_email, "Commit email", None)?;
+    let username = super::form::field(fields.username, "GitHub username", None)?;
+    let commit_name = super::form::field(fields.name, "Commit name", Some(&username))?;
+    let commit_email = super::form::field(fields.email, "Commit email", None)?;
 
     if terminal::interactive() {
         cliclack::outro("Identity details entered")?;
@@ -71,8 +53,15 @@ pub(in crate::commands) fn create(
         "Identity '{identity_name}' already exists"
     );
 
-    let pending = editor.add(&identity_name, &username, &commit_name, &commit_email)?;
-    github::login(&username)?;
+    let input = IdentityInput {
+        username,
+        commit: CommitDetails {
+            name: commit_name,
+            email: commit_email,
+        },
+    };
+    let pending = editor.add(&identity_name, &input)?;
+    github::login(&pending.identity(&identity_name)?.username)?;
     let config =
         pending.save("Configuration changed while signing in; run mgh identity new again")?;
 

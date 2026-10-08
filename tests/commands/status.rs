@@ -1,6 +1,60 @@
 use crate::support::Sandbox;
 use std::fs;
 
+fn report_text(output: &str) -> String {
+    output.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+#[test]
+fn status_does_not_match_a_placeholder_when_no_active_account_exists() {
+    let sandbox = Sandbox::new();
+    sandbox.write(
+        "config/multigh/identities.jsonc",
+        r#"{"personal":{"username":"unavailable","commit":{"email":"personal@example.com"}}}"#,
+    );
+    sandbox.ok("mgh", &["repo", "allowed", "add", "personal"]);
+    sandbox.write("accounts-json", "[]");
+
+    let output = sandbox.run("mgh", &["status"]);
+    let text = report_text(&String::from_utf8_lossy(&output.stdout));
+
+    assert!(!output.status.success());
+    assert!(text.contains("Active identity not configured"), "{text}");
+    assert!(
+        !text.contains("Identity and commit details match"),
+        "{text}"
+    );
+}
+
+#[test]
+fn status_accepts_an_active_github_login_named_unavailable() {
+    let sandbox = Sandbox::new();
+    sandbox.write(
+        "accounts-json",
+        r#"[{"login":"unavailable","active":true,"state":"success"}]"#,
+    );
+    sandbox.write(
+        "config/multigh/identities.jsonc",
+        r#"{"personal":{"username":"unavailable","commit":{"email":"personal@example.com"}}}"#,
+    );
+
+    let output = sandbox
+        .command("mgh")
+        .current_dir(sandbox.path("home"))
+        .arg("status")
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let text = report_text(&String::from_utf8(output.stdout).unwrap());
+    assert!(text.contains("personal (Active)"), "{text}");
+    assert!(text.contains("unavailable"), "{text}");
+}
+
 #[test]
 fn status_uses_identity_names_even_when_github_logins_differ_or_are_not_signed_in() {
     let sandbox = Sandbox::new();
@@ -14,19 +68,19 @@ fn status_uses_identity_names_even_when_github_logins_differ_or_are_not_signed_i
         r#"[{"login":"ALICE","active":true,"state":"success"},{"login":"unmapped","active":false,"state":"success"}]"#,
     );
 
-    let output = sandbox.ok("mgh", &["status"]);
+    let output = report_text(&sandbox.ok("mgh", &["status"]));
 
     assert!(
-        output.contains("personal (Active)\n    GitHub username           alice\n    Commit name               alice\n    Commit email              alice@example.com"),
+        output.contains("personal (Active) GitHub username alice Commit name alice Commit email alice@example.com"),
         "{output}"
     );
     assert!(
-        output.contains("work (Not signed in)\n    GitHub username           carol\n    Commit name               carol\n    Commit email              carol@example.com"),
+        output.contains("work (Not signed in) GitHub username carol Commit name carol Commit email carol@example.com"),
         "{output}"
     );
     assert!(output.contains("git-personal.conf") && output.contains("git-work.conf"));
     assert!(
-        output.contains("Unconfigured GitHub accounts\n  unmapped"),
+        output.contains("Unconfigured GitHub accounts unmapped"),
         "{output}"
     );
     assert!(!output.contains("ALICE alice@example.com"));
@@ -41,31 +95,31 @@ fn status_reports_live_authentication_identity_and_protection_without_mutation()
 
     let before = fs::read(sandbox.path("gitconfig")).unwrap();
     let local = fs::read(sandbox.path("repo/.git/config")).unwrap();
-    let status = sandbox.ok("mgh", &["status"]);
+    let status = report_text(&sandbox.ok("mgh", &["status"]));
 
     assert!(status.contains(&format!(
-        "  personal (Active)\n    GitHub username           alice\n    Commit name               Alice Example\n    Commit email              alice@example.com\n    Identity file             {}",
+        "personal (Active) GitHub username alice Commit name Alice Example Commit email alice@example.com Identity file {}",
         sandbox.path("state/multigh/identities/git-personal.conf").display()
     )));
     assert!(status.contains(&format!(
-        "  school\n    GitHub username           bob\n    Commit name               Bob Example\n    Commit email              bob@example.edu\n    Identity file             {}",
+        "school GitHub username bob Commit name Bob Example Commit email bob@example.edu Identity file {}",
         sandbox.path("state/multigh/identities/git-school.conf").display()
     )));
     assert!(status.contains("Identities"));
     assert_eq!(status.matches("(Active)").count(), 1);
     assert!(status.contains(&format!(
-        "  Accounts\n  {}",
+        "Accounts {}",
         sandbox.path("config/multigh/identities.jsonc").display()
     )));
     assert!(!status.contains("Account file") && !status.contains("Global commit defaults"));
-    assert!(status.contains("Allowed identities          personal"));
+    assert!(status.contains("Allowed identities personal"));
     assert!(
         status.contains("alice@example.com")
             && status.contains("Identity and commit details match")
     );
     assert!(status.contains("Commit + push checks enabled"));
-    assert!(status.contains("Active identity             personal"));
-    assert!(status.contains("Autoswitch (global)         OFF"));
+    assert!(status.contains("Active identity personal"));
+    assert!(status.contains("Autoswitch (global) OFF"));
     assert_eq!(before, fs::read(sandbox.path("gitconfig")).unwrap());
     assert_eq!(local, fs::read(sandbox.path("repo/.git/config")).unwrap());
 
@@ -80,9 +134,7 @@ fn repository_status_reports_local_preferences_and_works_in_bare_repositories() 
     sandbox.protect();
     sandbox.ok("mgh", &["settings", "autoswitch", "on"]);
     assert!(
-        sandbox
-            .ok("mgh", &["repo", "status"])
-            .contains("Autoswitch (global)         ON")
+        report_text(&sandbox.ok("mgh", &["repo", "status"])).contains("Autoswitch (global) ON")
     );
     sandbox.ok("git", &["init", "--bare", "../bare.git"]);
     let output = sandbox
@@ -97,12 +149,12 @@ fn repository_status_reports_local_preferences_and_works_in_bare_repositories() 
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let text = String::from_utf8_lossy(&output.stdout);
-    assert!(text.contains("Current repository          bare.git"));
+    let text = report_text(&String::from_utf8_lossy(&output.stdout));
+    assert!(text.contains("Current repository bare.git"));
     assert!(text.contains("No identities are authorized"));
-    assert!(text.contains("Autoswitch (global)         ON"));
+    assert!(text.contains("Autoswitch (global) ON"));
     assert!(text.contains(&format!(
-        "Repo config                 {}",
+        "Repo config {}",
         sandbox.path("bare.git/config").canonicalize().unwrap().display()
     )));
 }
@@ -127,10 +179,10 @@ fn linked_worktree_status_shows_the_common_repository_config_path_without_change
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let text = String::from_utf8_lossy(&output.stdout);
+    let text = report_text(&String::from_utf8_lossy(&output.stdout));
     assert!(
         text.contains(&format!(
-            "Repo config                 {}",
+            "Repo config {}",
             config.canonicalize().unwrap().display()
         )),
         "{text}"
@@ -171,11 +223,7 @@ fn status_explains_unconfigured_disallowed_and_mismatched_repositories() {
 
     sandbox.ok("mgh", &["repo", "protections", "off"]);
 
-    assert!(
-        sandbox
-            .ok("mgh", &["status"])
-            .contains("Protection                  OFF")
-    );
+    assert!(report_text(&sandbox.ok("mgh", &["status"])).contains("Protection OFF"));
 }
 
 #[test]
@@ -222,11 +270,13 @@ fn status_outside_a_repository_reports_identity_entries_without_global_defaults(
 
     assert!(output.status.success());
 
-    let text = String::from_utf8_lossy(&output.stdout);
+    let text = report_text(&String::from_utf8_lossy(&output.stdout));
 
     assert!(text.contains("Identities"));
-    assert!(text.contains("personal (Active)\n    GitHub username           alice\n    Commit name               Alice Example\n    Commit email              alice@example.com"));
-    assert!(text.contains("school\n    GitHub username           bob\n    Commit name               Bob Example\n    Commit email              bob@example.edu"));
+    assert!(text.contains("personal (Active) GitHub username alice Commit name Alice Example Commit email alice@example.com"));
+    assert!(text.contains(
+        "school GitHub username bob Commit name Bob Example Commit email bob@example.edu"
+    ));
     assert!(!text.contains("GitHub accounts") && !text.contains("Account file"));
     assert!(!text.contains("Global commit defaults"));
     assert!(!text.contains("Current repository"));

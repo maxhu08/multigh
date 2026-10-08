@@ -5,13 +5,13 @@ use crate::{
     settings,
     utils::output::{self, Color},
 };
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use std::path::PathBuf;
 
 pub fn repository(
     repository: &Repository,
     config: &Config,
-    active: &str,
+    active: Option<&str>,
     before: Option<&CommitDetails>,
 ) -> Result<()> {
     output::heading(
@@ -33,13 +33,17 @@ pub fn repository(
 
     output::row(
         "Active identity",
-        config
-            .identity_for_username(active)
+        active
+            .and_then(|login| config.identity_for_username(login))
             .map(|(name, _)| name)
             .unwrap_or("not configured"),
         Color::Changed,
     );
-    output::row("GitHub username", active, Color::Value);
+    output::row(
+        "GitHub username",
+        active.unwrap_or("unavailable"),
+        Color::Value,
+    );
 
     output::row(
         "Allowed identities",
@@ -105,7 +109,10 @@ pub fn repository(
         }
     }
 
-    match policy::active(config, &allowed, active) {
+    match active
+        .context("No active GitHub account")
+        .and_then(|login| policy::active(config, &allowed, login))
+    {
         Ok((identity_name, identity)) => {
             if let Err(error) = guard::commit_details(repository, identity_name, identity) {
                 output::warning(&error.to_string());
@@ -128,8 +135,7 @@ pub fn run(path: PathBuf, full: bool) -> Result<()> {
     let active = accounts
         .iter()
         .find(|account| account.active)
-        .and_then(|account| account.login.as_deref())
-        .unwrap_or("unavailable");
+        .and_then(|account| account.login.as_deref());
     let config = Config::load(path.clone());
 
     if let Ok(config) = &config {
@@ -163,10 +169,13 @@ pub fn run(path: PathBuf, full: bool) -> Result<()> {
                 output::paint(
                     account.login.as_deref().unwrap_or("unknown"),
                     Color::Value,
-                    false
+                    output::Stream::Stdout
                 ),
                 if account.active {
-                    format!(" {}", output::paint("(Active)", Color::Changed, false))
+                    format!(
+                        " {}",
+                        output::paint("(Active)", Color::Changed, output::Stream::Stdout)
+                    )
                 } else {
                     String::new()
                 }
@@ -183,7 +192,11 @@ pub fn run(path: PathBuf, full: bool) -> Result<()> {
     output::section("Accounts");
     println!(
         "  {}",
-        output::paint(&path.to_string_lossy(), Color::Muted, false)
+        output::paint(
+            &path.to_string_lossy(),
+            Color::Muted,
+            output::Stream::Stdout
+        )
     );
 
     match config {
@@ -199,15 +212,21 @@ pub fn run(path: PathBuf, full: bool) -> Result<()> {
 
     if full {
         let result = github::report()?;
-        output::block(&String::from_utf8_lossy(&result.stdout), false);
-        output::block(&String::from_utf8_lossy(&result.stderr), true);
+        output::block(
+            &String::from_utf8_lossy(&result.stdout),
+            output::Stream::Stdout,
+        );
+        output::block(
+            &String::from_utf8_lossy(&result.stderr),
+            output::Stream::Stderr,
+        );
         ensure!(
             result.status.success(),
             "GitHub authentication check failed"
         );
     }
 
-    ensure!(active != "unavailable", "No active GitHub account");
+    ensure!(active.is_some(), "No active GitHub account");
 
     Ok(())
 }
@@ -238,24 +257,27 @@ fn print_identities(config: &Config, accounts: &[github::Account]) -> Result<()>
         });
         let marker = match account {
             Some(account) if account.active => {
-                format!(" {}", output::paint("(Active)", Color::Changed, false))
+                format!(
+                    " {}",
+                    output::paint("(Active)", Color::Changed, output::Stream::Stdout)
+                )
             }
             None => format!(
                 " {}",
-                output::paint("(Not signed in)", Color::Warning, false)
+                output::paint("(Not signed in)", Color::Warning, output::Stream::Stdout)
             ),
             _ => String::new(),
         };
 
         println!(
             "  {}{marker}",
-            output::paint(identity_name, Color::Value, false),
+            output::paint(identity_name, Color::Value, output::Stream::Stdout),
         );
         output::nested_row("GitHub username", &identity.username, Color::Value, 4);
         output::nested_row("Commit name", &identity.commit_name, Color::Value, 4);
         output::nested_row("Commit email", &identity.commit_email, Color::Value, 4);
 
-        let location = git::identity_files::directory()?.join(format!("git-{identity_name}.conf"));
+        let location = git::identity_files::path(&git::identity_files::directory()?, identity_name);
 
         output::nested_row(
             "Identity file",

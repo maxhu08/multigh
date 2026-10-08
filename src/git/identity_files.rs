@@ -1,4 +1,4 @@
-use super::{entries, global, run};
+use super::{Scope, entries, global, run};
 use crate::{config::Config, utils::storage};
 use anyhow::{Result, ensure};
 use std::{
@@ -12,13 +12,17 @@ pub fn directory() -> Result<PathBuf> {
     Ok(storage::directory("XDG_STATE_HOME", ".local/state")?.join("multigh/identities"))
 }
 
+pub fn path(directory: &Path, identity_name: &str) -> PathBuf {
+    directory.join(format!("git-{identity_name}.conf"))
+}
+
 pub fn refresh(config: &Config, global: &mut global::Writer<'_>) -> Result<PathBuf> {
     let directory = directory()?;
-    let previous = entries(Some("--global"), "^[iI]nclude[iI]f\\.")?;
+    let previous = entries(Some(Scope::Global), "^[iI]nclude[iI]f\\.")?;
     let mut desired = BTreeMap::new();
 
     for (identity_name, identity) in &config.identities {
-        let identity_file = directory.join(format!("git-{identity_name}.conf"));
+        let identity_file = path(&directory, identity_name);
 
         ensure!(
             !fs::symlink_metadata(&identity_file)
@@ -53,7 +57,7 @@ pub fn refresh(config: &Config, global: &mut global::Writer<'_>) -> Result<PathB
 
     for (identity_name, identity) in &config.identities {
         let temporary = NamedTempFile::new_in(&directory)?;
-        let path = temporary.path().to_string_lossy();
+        let temporary_path = temporary.path().to_string_lossy();
 
         let comment = global.comment();
 
@@ -61,10 +65,18 @@ pub fn refresh(config: &Config, global: &mut global::Writer<'_>) -> Result<PathB
             ("user.name", &identity.commit_name),
             ("user.email", &identity.commit_email),
         ] {
-            run(&["config", "--file", &path, "--comment", &comment, key, value])?;
+            run(&[
+                "config",
+                "--file",
+                &temporary_path,
+                "--comment",
+                &comment,
+                key,
+                value,
+            ])?;
         }
 
-        temporary.persist(directory.join(format!("git-{identity_name}.conf")))?;
+        temporary.persist(path(&directory, identity_name))?;
     }
 
     for (key, values) in &previous {

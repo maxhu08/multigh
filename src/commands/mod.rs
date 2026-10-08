@@ -1,5 +1,6 @@
 mod doctor;
 pub mod enter;
+mod global;
 mod hook;
 mod identity;
 mod repo;

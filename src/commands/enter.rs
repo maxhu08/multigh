@@ -1,3 +1,4 @@
+use super::settings::autoswitch::Selection;
 use crate::{
     config::Config,
     hooks, policy,
@@ -61,19 +62,19 @@ pub(super) fn enter(repository: &Repository, path: PathBuf) -> Result<()> {
         }
     }
 
-    let selection_handled = if autoswitch {
+    let selection = if autoswitch {
         match super::settings::autoswitch::select(repository, &config) {
-            Ok(handled) => handled,
+            Ok(selection) => selection,
             Err(error) => {
                 output::warning(&format!("{error:#}"));
-                false
+                Selection::None
             }
         }
     } else {
-        false
+        Selection::None
     };
 
-    if verbose && !selection_handled {
+    if verbose && matches!(selection, Selection::None) {
         let detected = hooks::preserved::detected(repository)?;
 
         if !detected.is_empty() {
@@ -85,7 +86,7 @@ pub(super) fn enter(repository: &Repository, path: PathBuf) -> Result<()> {
                     output::paint(
                         "Identity protections are active; your existing checks are preserved.",
                         output::Color::Changed,
-                        false
+                        output::Stream::Stdout
                     )
                 );
             }

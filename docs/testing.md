@@ -19,8 +19,9 @@ verified by this suite.
 
 ## Unit tests
 
-Small tests beside shared modules cover policy decoding, pending identity saves
-and expected versus unexpected process failures through
+Small tests beside shared modules cover policy decoding and unchecked permissions,
+pending identity saves, missing-identity operations, and expected versus unexpected
+process failures through
 [`utils/process.rs`](../src/utils/process.rs).
 They complement the integration suite; they do not replace real Git, hooks or
 terminal tests. Run just these tests with `cargo test --bin mgh`.
@@ -53,8 +54,10 @@ output. Failed pushes also verify that blocked references were not created.
 Keep tests focused on command behavior, saved configuration, permission boundaries,
 external failures and hook/shell integration. Prefer functional outcomes over
 presentation details or behavior owned by dependencies. Diagnostic tests should
-check useful information without requiring a particular layout. Preserve existing
-JSONC comments and formatting in tests because editing must retain the user's file.
+check useful information without requiring a particular layout. Status behavior
+tests normalize report whitespace; focused output tests cover alignment separately.
+Preserve existing JSONC comments and formatting in tests because editing must retain
+the user's file.
 Cocogitto coverage checks coexistence with mgh; it does not retest Cocogitto's parser
 or installer prompts.
 

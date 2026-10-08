@@ -24,13 +24,14 @@ registries or interchangeable backend traits.
 | --- | --- |
 | [`cli.rs`](../src/cli.rs) | clap command definitions, argument types and embedded help. |
 | [`commands/`](../src/commands/mod.rs) | Dispatch, command orchestration, forms, reports and recovery messages. |
+| [`commands/global.rs`](../src/commands/global.rs) | Global-write orchestration and pending, printed or suppressed change reports. |
 | [`config.rs`](../src/config.rs) | Configuration paths, identity types and matching, named commit details, parsing and validation. |
 | [`config/editor.rs`](../src/config/editor.rs) | JSONC edits, validated pending files, concurrent-change checks and atomic saves. |
 | [`repository.rs`](../src/repository.rs) | Repository discovery, scoped Git operations, worktree/bare roots and common config paths. |
 | [`policy.rs`](../src/policy.rs) | Permission interpretation, compatibility migration and local identity writes. |
-| [`git.rs`](../src/git.rs) | Shared Git execution, optional configuration reads and repeated-entry parsing. |
-| [`git/global.rs`](../src/git/global.rs) | Global configuration writes, provenance comments and change reporting. |
-| [`git/identity_files.rs`](../src/git/identity_files.rs) | Generated identity files and conditional include rules. |
+| [`git.rs`](../src/git.rs) | Shared Git execution, typed configuration scopes, optional reads and repeated-entry parsing. |
+| [`git/global.rs`](../src/git/global.rs) | Global configuration writes, provenance comments and change tracking. |
+| [`git/identity_files.rs`](../src/git/identity_files.rs) | Identity-file paths, generated files and conditional include rules. |
 | [`github.rs`](../src/github.rs) | Typed account responses, selected/live authentication, login and switching. |
 | [`guard.rs`](../src/guard.rs) | Commit details, named push-input/history parsing and outgoing-history enforcement. |
 | [`hooks/install.rs`](../src/hooks/install.rs) | Managed launchers and preservation of local/worktree hook overrides. |
@@ -57,8 +58,8 @@ command. Add a subdirectory under utils only when related utilities need one.
 
 | Trigger | Call path |
 | --- | --- |
-| Setup with identities | `commands::setup::run` → repository discovery → `setup::install` → identity files, hooks and setup preferences → `setup::report`. |
-| Add an identity | `commands::identity::new::run` → `new::create` (form, editor, login, save) and `new::report` → repository discovery → `setup::install` and `setup::report` → `switch::select` and `switch::report`. |
+| Setup with identities | `commands::setup::run` → `setup::configure` → repository discovery → `setup::install` → identity files, hooks and setup preferences → `setup::report`. |
+| Add an identity | `commands::identity::new::run` → `new::create` (form, editor, login, save) and `new::report` → `setup::configure` → integration and reports → `switch::select` and `switch::report`. |
 | Edit or remove an identity | `commands::identity::edit::edit` or `edit::remove` → editor edit/remove → login for edits → shared save/report → identity-file refresh. |
 | Manual or automatic switching | `commands::switch::run` or `settings::autoswitch::select` → `switch::select` (preflight, identity files, authentication, defaults, allowed local details) → `switch::report`. |
 | Repository entry | `commands::enter::run` → repository discovery → `enter::enter` → readiness/repair → optional permission picker → optional autoswitch → entry report. |
@@ -67,10 +68,10 @@ command. Add a subdirectory under utils only when related utilities need one.
 | Interactive Git initialization | shell Git wrapper → `commands::shell::git::run` → native Git → command-scoped alias → internal entry. |
 
 Setup without identities calls `identity::new::create` for the first identity,
-then explicitly installs integration, selects it and reports both actions. Identity
-creation uses the same actions and reports without calling setup or switch command
-entry points. These functions stay in their owning files. Each caller chooses the
-report it needs and retains recovery guidance if integration fails after saving.
+then calls `setup::configure` to install integration, select it and report both
+actions. Identity creation uses that same helper, including recovery guidance if
+integration fails after saving. The shared helper calls actions and reports in
+their owning modules without invoking setup or switch command entry points.
 
 ## Configuration ownership and scope
 
@@ -119,8 +120,10 @@ retains its own rule for detecting a disallowed identity's names or emails.
 
 Identity commands first open one original snapshot and collect input. Editor
 add/edit/remove methods preserve the concrete syntax tree and validate the entire
-result before preparing a private temporary file. GitHub login occurs before
-`PendingUpdate::save`. Saving rechecks the original bytes and symlink status;
+result before preparing a private temporary file. Editor writes take named
+`IdentityInput` and `CommitDetails` fields. GitHub login uses the normalized identity
+from `PendingUpdate::identity` before `PendingUpdate::save`. Saving rechecks the
+original bytes and symlink status;
 changed, newly created or deleted originals are preserved. Dropping a pending
 update removes its temporary file. Edits preserve additional emails, comments,
 formatting and other identities.
@@ -129,11 +132,11 @@ Recoverable errors belong at boundaries: user input, configuration parsing,
 filesystem access, repository policy and external commands. The editor keeps its
 validated original snapshot private; its later syntax-tree access uses established
 invariants instead of errors for invalid shapes already rejected on open. Edit and
-remove callers resolve the identity before invoking the editor. A prepared edit
-still validates new input and checks concurrent changes before saving. Policy
-selection returns the resolved identity so guards and reports do not repeat lookup
-validation. Authorization receives a nonempty set from the required checklist or
-an add/remove command; those callers handle an empty set separately.
+remove operations also reject missing identities inside the editor. A prepared
+edit validates new input and checks concurrent changes before saving. Policy
+selection validates permission names itself and returns the resolved identity.
+Authorization rejects an empty selection before any reads or writes; storing
+explicit empty permissions remains supported separately by `policy::save`.
 
 After a save, integration refresh or switching can still fail. The saved identity
 remains available; identity creation reports recovery commands with its selected
@@ -152,7 +155,10 @@ fails. First setup enables verbose once, then preserves preferences and explicit
 local protection exceptions. `setup::install` returns the identity-file directory
 for `setup::report`.
 
-`git::global::update` creates a writer for one originating command. Matching values
+`commands::global::update` creates a `git::global::Writer` for one originating
+command and a separate report with pending, printed or suppressed states. The
+writer tracks changes without printing; setup can print the report at the existing
+point in its output, and successful autoswitch can suppress it. Matching values
 are skipped. Changed entries use Git's native `config --comment` provenance;
 removal leaves no stray inline comment. Completed writes are reported even if a
 later step fails. Git chooses the global filepath, preserving home,
@@ -164,14 +170,18 @@ repository discovery recognizes Git's no-repository diagnostic. Malformed Git
 config is an error, not an absent repository. During initialization, hooks may
 run before local config exists; protections still default on and preserved hooks
 continue forwarding. Selected GitHub accounts are local reads; guards use live
-authentication and never rely on a cached selection.
+authentication and never rely on a cached selection. Account queries treat a missing
+GitHub host as an empty account list. Login opens authentication only for a missing
+or unsuccessful login; unexpected query and parsing errors are propagated.
 
 ## Hooks, forms and output
 
 Managed hooks keep their format marker. Readiness checks every launcher's
 existence, executable permission and marker, plus the effective hook path.
 Integration saves repo/worktree overrides in their original scope and rechecks
-readiness. Global and command overrides remain untouched. Existing hooks keep
+readiness. Hook settings carry a typed `git::Scope` and path; integration writes
+only local or worktree scopes. Global and command overrides remain untouched.
+Existing hooks keep
 arguments, rejection behavior and working-directory path resolution. Pre-push
 input is read once, checked and replayed as bytes; other hooks inherit input.
 Husky and legacy backup hooks remain supported, with recursion checks.
@@ -179,19 +189,22 @@ Husky and legacy backup hooks remain supported, with recursion checks.
 Commit/push enforcement never prompts or switches accounts. Entry catches picker
 and autoswitch failures so the shell stays usable; protections continue rejecting
 invalid operations. A sole allowed identity avoids writes when already selected.
-Multiple allowed identities require a selection. Autoswitch's boolean result means
-selection was handled, including when the sole identity was already active;
-`enter::enter` uses `selection_handled` to decide whether an entry report is needed.
+Multiple allowed identities require a selection. Autoswitch returns
+`Selection::None`, `AlreadyActive` or `Switched`. Entry reports retain their current
+behavior: both already-active and switched selections suppress the extra report.
 
 `guard.rs` parses external push updates into `PushUpdate` and Git history into
 `OutgoingCommit` before enforcing rules. Named OID, author and committer fields
-keep parsing details out of the enforcement loop. Both parsers stay in that file.
+keep parsing details out of the enforcement loop. `OutgoingCommit::disallowed_identity`
+owns classification of disallowed names/emails, retaining active-name exemptions.
+Both parsers and the classification helper stay in that file.
 
 Interactive forms use cliclack. `utils::terminal::interactive` requires stdin,
 stdout and stderr terminals. Forms preserve existing defaults and selections and
 cancel without saving. Permission checklists require at least one allowed identity.
 Noninteractive options remain supported.
 
+Output helpers name stdout and stderr with `output::Stream` rather than a flag.
 Full GitHub authentication reports capture stdout and stderr. Status and doctor
 only read; welcome uses selected local login without a live authentication request.
 

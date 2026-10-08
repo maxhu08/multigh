@@ -1,8 +1,8 @@
 use crate::{
     cli::IdentityFields,
     config::{
-        Config,
-        editor::{Editor, PendingUpdate},
+        CommitDetails, Config,
+        editor::{Editor, IdentityInput, PendingUpdate},
     },
     git, github,
     utils::{output, terminal},
@@ -52,11 +52,18 @@ pub fn edit(path: PathBuf, identity_name: &str, fields: IdentityFields) -> Resul
         );
     }
 
-    let pending = editor.edit(identity_name, &new_username, &commit_name, &email)?;
+    let input = IdentityInput {
+        username: new_username,
+        commit: CommitDetails {
+            name: commit_name,
+            email,
+        },
+    };
+    let pending = editor.edit(identity_name, &input)?;
     if interactive {
         cliclack::outro("Identity details entered")?;
     }
-    github::login(&new_username)?;
+    github::login(&pending.identity(identity_name)?.username)?;
     let updated = save(pending, identity_name, "updated")?;
     refresh(
         &updated,
@@ -99,7 +106,7 @@ fn save(pending: PendingUpdate, identity_name: &str, description: &str) -> Resul
 }
 
 fn refresh(config: &Config, command: &str) -> Result<()> {
-    git::global::update(command, |global| {
+    super::super::global::update(command, |global, _| {
         git::identity_files::refresh(config, global)?;
         Ok(())
     })

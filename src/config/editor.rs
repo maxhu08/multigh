@@ -1,4 +1,4 @@
-use super::{Config, JSONC};
+use super::{CommitDetails, Config, Identity, JSONC};
 use crate::utils::storage;
 use anyhow::{Context, Result, ensure};
 use jsonc_parser::{
@@ -22,6 +22,11 @@ pub struct PendingUpdate {
     editor: Editor,
     file: NamedTempFile,
     config: Config,
+}
+
+pub struct IdentityInput {
+    pub username: String,
+    pub commit: CommitDetails,
 }
 
 fn read(path: &Path) -> Result<Option<String>> {
@@ -61,13 +66,10 @@ impl Editor {
         self.config.as_ref()
     }
 
-    pub fn add(
-        self,
-        identity_name: &str,
-        username: &str,
-        commit_name: &str,
-        email: &str,
-    ) -> Result<PendingUpdate> {
+    pub fn add(self, identity_name: &str, input: &IdentityInput) -> Result<PendingUpdate> {
+        let username = input.username.as_str();
+        let commit_name = input.commit.name.as_str();
+        let email = input.commit.email.as_str();
         let text = if let Some(original) = &self.original {
             let document = CstRootNode::parse(original, &JSONC)
                 .expect("the original snapshot was validated on open");
@@ -94,15 +96,9 @@ impl Editor {
         self.prepare(&text)
     }
 
-    pub fn edit(
-        self,
-        identity_name: &str,
-        username: &str,
-        commit_name: &str,
-        email: &str,
-    ) -> Result<PendingUpdate> {
-        let document = self.document();
-        let property = find_identity(&document, identity_name);
+    pub fn edit(self, identity_name: &str, input: &IdentityInput) -> Result<PendingUpdate> {
+        let document = self.document()?;
+        let property = find_identity(&document, identity_name)?;
         let object = property
             .object_value()
             .expect("validated identity is an object");
@@ -110,25 +106,26 @@ impl Editor {
             .object_value("commit")
             .expect("validated commit details are an object");
 
-        set(&object, "username", username);
-        set(&commit, "name", commit_name);
-        set(&commit, "email", email);
+        set(&object, "username", &input.username);
+        set(&commit, "name", &input.commit.name);
+        set(&commit, "email", &input.commit.email);
 
         self.prepare(&document.to_string())
     }
 
     pub fn remove(self, identity_name: &str) -> Result<PendingUpdate> {
-        let document = self.document();
-        find_identity(&document, identity_name).remove();
+        let document = self.document()?;
+        find_identity(&document, identity_name)?.remove();
         self.prepare(&document.to_string())
     }
 
-    fn document(&self) -> CstRootNode {
+    fn document(&self) -> Result<CstRootNode> {
         let original = self
             .original
             .as_deref()
-            .expect("edit and remove require an existing identity");
-        CstRootNode::parse(original, &JSONC).expect("the original snapshot was validated on open")
+            .context("Identity configuration unavailable")?;
+        Ok(CstRootNode::parse(original, &JSONC)
+            .expect("the original snapshot was validated on open"))
     }
 
     fn prepare(self, text: &str) -> Result<PendingUpdate> {
@@ -156,6 +153,10 @@ impl Editor {
 }
 
 impl PendingUpdate {
+    pub fn identity(&self, identity_name: &str) -> Result<&Identity> {
+        self.config.identity(identity_name)
+    }
+
     pub fn save(self, conflict_message: &str) -> Result<Config> {
         ensure!(
             !is_symlink(&self.editor.path) && read(&self.editor.path)? == self.editor.original,
@@ -166,7 +167,7 @@ impl PendingUpdate {
     }
 }
 
-fn find_identity(document: &CstRootNode, identity_name: &str) -> CstObjectProp {
+fn find_identity(document: &CstRootNode, identity_name: &str) -> Result<CstObjectProp> {
     document
         .object_value()
         .expect("validated configuration is an object")
@@ -177,7 +178,7 @@ fn find_identity(document: &CstRootNode, identity_name: &str) -> CstObjectProp {
                 .decoded_name()
                 .is_some_and(|key| key.eq_ignore_ascii_case(identity_name))
         })
-        .expect("the command resolved this identity before editing")
+        .with_context(|| format!("Unknown identity '{identity_name}'"))
 }
 
 fn set(object: &CstObject, key: &str, value: &str) {
@@ -190,8 +191,56 @@ fn set(object: &CstObject, key: &str, value: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::Editor;
+    use super::{Editor, IdentityInput};
+    use crate::config::CommitDetails;
     use std::fs;
+
+    fn input() -> IdentityInput {
+        IdentityInput {
+            username: "alice".into(),
+            commit: CommitDetails {
+                name: "Alice Example".into(),
+                email: "alice@example.com".into(),
+            },
+        }
+    }
+
+    #[test]
+    fn missing_identity_operations_return_errors_without_changing_the_snapshot() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("identities.jsonc");
+
+        assert!(
+            Editor::open(path.clone())
+                .unwrap()
+                .edit("personal", &input())
+                .is_err()
+        );
+        assert!(
+            Editor::open(path.clone())
+                .unwrap()
+                .remove("personal")
+                .is_err()
+        );
+        assert!(!path.exists());
+
+        fs::write(&path, "// Existing identities\n{}\n").unwrap();
+        let original = fs::read(&path).unwrap();
+        assert!(
+            Editor::open(path.clone())
+                .unwrap()
+                .edit("personal", &input())
+                .is_err()
+        );
+        assert!(
+            Editor::open(path.clone())
+                .unwrap()
+                .remove("personal")
+                .is_err()
+        );
+        assert_eq!(fs::read(&path).unwrap(), original);
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
+    }
 
     #[test]
     fn prepared_identity_is_not_visible_until_saved_and_dropping_it_cleans_up() {
@@ -199,7 +248,7 @@ mod tests {
         let path = directory.path().join("identities.jsonc");
         let pending = Editor::open(path.clone())
             .unwrap()
-            .add("personal", "alice", "Alice Example", "alice@example.com")
+            .add("personal", &input())
             .unwrap();
 
         assert!(!path.exists());
@@ -208,7 +257,7 @@ mod tests {
 
         let config = Editor::open(path.clone())
             .unwrap()
-            .add("personal", "alice", "Alice Example", "alice@example.com")
+            .add("personal", &input())
             .unwrap()
             .save("Configuration changed")
             .unwrap();
@@ -223,7 +272,7 @@ mod tests {
         let path = directory.path().join("identities.jsonc");
         let pending = Editor::open(path.clone())
             .unwrap()
-            .add("personal", "alice", "Alice Example", "alice@example.com")
+            .add("personal", &input())
             .unwrap();
         fs::write(&path, "// Created by another process\n{}\n").unwrap();
 
@@ -235,7 +284,7 @@ mod tests {
 
         let pending = Editor::open(path.clone())
             .unwrap()
-            .add("personal", "alice", "Alice Example", "alice@example.com")
+            .add("personal", &input())
             .unwrap();
         fs::remove_file(&path).unwrap();
 

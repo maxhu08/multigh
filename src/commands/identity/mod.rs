@@ -9,9 +9,7 @@ use std::path::PathBuf;
 pub fn run(path: PathBuf, command: Option<IdentityCommand>) -> Result<()> {
     match command.unwrap_or(IdentityCommand::List) {
         IdentityCommand::List => super::status::identities(&Config::load(path)?),
-        IdentityCommand::New { identity, fields } => {
-            new::run(path, identity, fields.username, fields.email, fields.name)
-        }
+        IdentityCommand::New { identity, fields } => new::run(path, identity, fields),
         IdentityCommand::Edit { identity, fields } => edit::edit(path, &identity, fields),
         IdentityCommand::Remove { identity } => edit::remove(path, &identity),
     }

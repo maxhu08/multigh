@@ -9,24 +9,41 @@ pub fn run(
     match command.unwrap_or(AllowedCommand::List) {
         AllowedCommand::List => super::selection::show(repository, config),
         AllowedCommand::Update => super::selection::choose(repository, config),
-        AllowedCommand::Add { identity } => change(repository, config, &identity, true),
-        AllowedCommand::Remove { identity } => change(repository, config, &identity, false),
+        AllowedCommand::Add { identity } => {
+            change(repository, config, &identity, PermissionChange::Add)
+        }
+        AllowedCommand::Remove { identity } => {
+            change(repository, config, &identity, PermissionChange::Remove)
+        }
     }
 }
 
-fn change(repository: &Repository, config: &Config, identity_name: &str, add: bool) -> Result<()> {
+enum PermissionChange {
+    Add,
+    Remove,
+}
+
+fn change(
+    repository: &Repository,
+    config: &Config,
+    identity_name: &str,
+    change: PermissionChange,
+) -> Result<()> {
     let mut allowed = policy::stored(repository)?;
     let name = identity_name.to_ascii_lowercase();
 
-    if add {
-        config.identity(&name)?;
-        allowed.insert(name);
-    } else {
-        allowed.remove(&name);
+    match change {
+        PermissionChange::Add => {
+            config.identity(&name)?;
+            allowed.insert(name);
+        }
+        PermissionChange::Remove => {
+            allowed.remove(&name);
+        }
     }
 
     if allowed.is_empty()
-        || !add
+        || matches!(change, PermissionChange::Remove)
             && allowed
                 .iter()
                 .any(|name| !config.identities.contains_key(name))

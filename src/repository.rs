@@ -81,8 +81,8 @@ impl Repository {
         self.optional_config(&["config", "--local", "--get", key])
     }
 
-    pub fn set(&self, scope: &str, key: &str, value: &str) -> Result<()> {
-        self.run(&["config", scope, key, value])?;
+    pub fn set(&self, scope: git::Scope, key: &str, value: &str) -> Result<()> {
+        self.run(&["config", scope.argument()?, key, value])?;
         Ok(())
     }
 

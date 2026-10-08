@@ -71,7 +71,7 @@ pub fn detected(repository: &Repository) -> Result<Vec<DetectedHook>> {
     let root = &repository.root;
     let shared = fs::canonicalize(super::directory()?).ok();
     let overridden = readiness::setting(repository)?
-        .map(|(_, path)| root.join(path))
+        .map(|setting| root.join(setting.path))
         .filter(|path| fs::canonicalize(path).ok() != shared);
     let Some(directory) = (match overridden {
         Some(directory) => Some(directory),

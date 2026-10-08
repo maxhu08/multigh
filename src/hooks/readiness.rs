@@ -1,9 +1,14 @@
 use super::{MARKER, NAMES, directory};
-use crate::{repository::Repository, utils::storage};
-use anyhow::Result;
+use crate::{git::Scope, repository::Repository, utils::storage};
+use anyhow::{Context, Result};
 use std::{fs, path::PathBuf};
 
-pub(super) fn setting(repository: &Repository) -> Result<Option<(String, PathBuf)>> {
+pub(super) struct HookSetting {
+    pub scope: Scope,
+    pub path: PathBuf,
+}
+
+pub(super) fn setting(repository: &Repository) -> Result<Option<HookSetting>> {
     let value = repository.optional_config(&[
         "config",
         "--null",
@@ -13,11 +18,17 @@ pub(super) fn setting(repository: &Repository) -> Result<Option<(String, PathBuf
         "core.hooksPath",
     ])?;
 
-    Ok(value.and_then(|value| {
-        let mut fields = value.split('\0');
-
-        Some((fields.next()?.to_owned(), PathBuf::from(fields.next()?)))
-    }))
+    value
+        .map(|value| {
+            let (scope, path) = value
+                .split_once('\0')
+                .context("Invalid Git hooks path setting")?;
+            Ok(HookSetting {
+                scope: Scope::parse(scope)?,
+                path: PathBuf::from(path.trim_end_matches('\0')),
+            })
+        })
+        .transpose()
 }
 
 pub fn shared_problems() -> Result<Vec<String>> {
@@ -44,10 +55,10 @@ pub fn problems(repository: &Repository) -> Result<Vec<String>> {
     let mut problems = shared_problems()?;
 
     match setting(repository)? {
-        Some((_, path))
+        Some(HookSetting { path, .. })
             if shared.is_some() && fs::canonicalize(repository.root.join(&path)).ok() == shared => {
         }
-        Some((scope, path)) => problems.insert(
+        Some(HookSetting { scope, path }) => problems.insert(
             0,
             format!("{scope} hook path overrides mgh: {}", path.display()),
         ),

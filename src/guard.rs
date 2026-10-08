@@ -71,25 +71,10 @@ pub fn push(repository: &Repository, config: &Config, updates: &str) -> Result<(
                 continue;
             }
 
-            for (other_identity_name, other) in &config.identities {
-                if allowed.contains(other_identity_name) {
-                    continue;
-                }
-
-                let wrong_name = [commit.author_name, commit.committer_name]
-                    .iter()
-                    .any(|name| {
-                        (other.matches_username(name)
-                            || name.eq_ignore_ascii_case(&other.commit_name))
-                            && !name.eq_ignore_ascii_case(&identity.commit_name)
-                            && !identity.matches_username(name)
-                    });
-                let wrong_email = [commit.author_email, commit.committer_email]
-                    .iter()
-                    .any(|email| other.accepts_email(email));
-
-                ensure!(
-                    !wrong_name && !wrong_email,
+            if let Some(other_identity_name) =
+                commit.disallowed_identity(config, &allowed, identity)
+            {
+                bail!(
                     "Push blocked: commit {} contains your {} identity in a {} repository.\nCorrect the affected commit before pushing.",
                     &commit.oid[..12],
                     other_identity_name,
@@ -138,6 +123,31 @@ struct OutgoingCommit<'a> {
 }
 
 impl<'a> OutgoingCommit<'a> {
+    fn disallowed_identity<'b>(
+        &self,
+        config: &'b Config,
+        allowed: &BTreeSet<String>,
+        active: &Identity,
+    ) -> Option<&'b str> {
+        config.identities.iter().find_map(|(name, identity)| {
+            if allowed.contains(name) {
+                return None;
+            }
+
+            let wrong_name = [self.author_name, self.committer_name].iter().any(|name| {
+                (identity.matches_username(name)
+                    || name.eq_ignore_ascii_case(&identity.commit_name))
+                    && !name.eq_ignore_ascii_case(&active.commit_name)
+                    && !active.matches_username(name)
+            });
+            let wrong_email = [self.author_email, self.committer_email]
+                .iter()
+                .any(|email| identity.accepts_email(email));
+
+            (wrong_name || wrong_email).then_some(name.as_str())
+        })
+    }
+
     fn parse_log(log: &'a str) -> Result<Vec<Self>> {
         let fields: Vec<_> = log.split_terminator('\0').collect();
         let mut commits = Vec::new();

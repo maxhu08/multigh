@@ -25,6 +25,11 @@ Flags change only their fields. Comments, formatting, additional emails and othe
 identities are preserved. Username login is verified before atomic saving. Edits
 refresh rules; run `mgh switch <identity>` to apply repo details.
 
+Creation and editing verify the username normalized by configuration validation,
+including trimming surrounding whitespace. Missing or unsuccessful GitHub logins
+open browser authentication. Unexpected account-query or response-parsing failures
+stop with their original cause and preserve the identity file.
+
 `identity remove <identity>` removes global configuration without signing out or
 changing repo permissions. Clean affected repos with `repo allowed remove` or
 `update`. Empty global config is supported; setup offers a new first identity.

@@ -139,9 +139,10 @@ allowed list. Read-only reports and guard checks do not rewrite configuration.
 
 `mgh settings autoswitch on|off` controls automatic selection globally, default OFF.
 Enable it once to apply to every repo; former per-repo autoswitch values are ignored.
-Enabling it checks the repo now. Shell entry/startup switches to one allowed
-identity unless already active. With several allowed identities, it asks which
-one to use. Cancellation and noninteractive multiple-choice entry do not switch
+Enabling it checks the repo now and can prompt for missing permissions; saving
+that selection updates the repo's allowed identities. Shell entry/startup switches
+to one allowed identity unless already active. With several allowed identities,
+it asks which one to use. Cancellation and noninteractive multiple-choice entry do not switch
 accounts. Failures are reported without breaking startup. Missing permissions can
 be configured first when protections are on. Git commit/push hooks never perform
 automatic switching.

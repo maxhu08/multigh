@@ -54,24 +54,10 @@ as `crate::utils::process`. Keep Git, GitHub, identity, policy and hook behavior
 their existing domain modules. Helpers needed by only one command stay with that
 command. Add a subdirectory under utils only when related utilities need one.
 
-## Main call paths
-
-| Trigger | Call path |
-| --- | --- |
-| Setup with identities | `commands::setup::run` → `setup::configure` → repository discovery → `setup::install` → identity files, hooks and setup preferences → `setup::report`. |
-| Add an identity | `commands::identity::new::run` → `new::create` (form, editor, login, save) and `new::report` → `setup::configure` → integration and reports → `switch::select` and `switch::report`. |
-| Edit or remove an identity | `commands::identity::edit::edit` or `edit::remove` → editor edit/remove → login for edits → shared save/report → identity-file refresh. |
-| Manual or automatic switching | `commands::switch::run` or `settings::autoswitch::select` → `switch::select` (preflight, identity files, authentication, defaults, allowed local details) → `switch::report`. |
-| Repository entry | `commands::enter::run` → repository discovery → `enter::enter` → readiness/repair → optional permission picker → optional autoswitch → entry report. |
-| Commit or push hook | `commands::hook::run` → repository discovery → protection setting → guard → `hooks::preserved::forward`. |
-| Initial clone checkout | `commands::hook::run` → `commands::enter::enter` with the discovered repository → preserved checkout hook. |
-| Interactive Git initialization | shell Git wrapper → `commands::shell::git::run` → native Git → command-scoped alias → internal entry. |
-
-Setup without identities calls `identity::new::create` for the first identity,
-then calls `setup::configure` to install integration, select it and report both
-actions. Identity creation uses that same helper, including recovery guidance if
-integration fails after saving. The shared helper calls actions and reports in
-their owning modules without invoking setup or switch command entry points.
+Setup and identity creation share identity forms and integration workflows.
+Creation authenticates and saves the identity before installing integration and
+selecting it. Repository entry repairs hook integration before permission
+selection and autoswitch. Guards verify identity before forwarding existing hooks.
 
 ## Configuration ownership and scope
 
@@ -102,7 +88,9 @@ including an empty list, take precedence over pins and old allowed lists. Pins
 must agree when they are the only source. Canonical names are case insensitive.
 `policy::migrate` writes separately on entry, setup and permission/identity updates;
 status, welcome and guards remain read-only. Legacy Git keys remain compatible.
-Global identity and preference commands never add repository permissions.
+Global identity changes preserve repository permissions. Enabling autoswitch runs
+entry checks and may open the permission picker in an unconfigured repository;
+only a saved user selection adds permissions.
 
 `Config::load` reads a file and delegates to `Config::parse`; pending edits use the
 same parser without rereading the original. Typed deserialization rejects unknown
@@ -147,19 +135,15 @@ Switching first resolves the requested identity, validates repository permission
 and reads previous commit details. Invalid or conflicting permissions fail before
 identity-file, authentication or configuration changes. It then refreshes identity
 files, changes authentication, sets global commit defaults and applies local details
-only for an already allowed identity. `SwitchResult` retains the resolved identity
-and named previous details for a separate report; `CommitDetails` replaces positional
-name/email arrays. These changes are not one transaction: completed global writes
-are reported even if a later step
-fails. First setup enables verbose once, then preserves preferences and explicit
-local protection exceptions. `setup::install` returns the identity-file directory
-for `setup::report`.
+only for an already allowed identity. Reports show previous and new commit details.
+First setup enables verbose once, then preserves preferences and explicit local
+protection exceptions.
 
 `commands::global::update` creates a `git::global::Writer` for one originating
 command and a separate report with pending, printed or suppressed states. The
-writer tracks changes without printing; setup can print the report at the existing
-point in its output, and successful autoswitch can suppress it. Matching values
-are skipped. Changed entries use Git's native `config --comment` provenance;
+writer tracks changes separately from reporting; successful autoswitch can suppress
+the global-change report. Matching values are skipped. Changed entries use Git's
+native `config --comment` provenance;
 removal leaves no stray inline comment. Completed writes are reported even if a
 later step fails. Git chooses the global filepath, preserving home,
 XDG, overrides and symlink locations. Config comments require Git 2.45+.
@@ -189,9 +173,8 @@ Husky and legacy backup hooks remain supported, with recursion checks.
 Commit/push enforcement never prompts or switches accounts. Entry catches picker
 and autoswitch failures so the shell stays usable; protections continue rejecting
 invalid operations. A sole allowed identity avoids writes when already selected.
-Multiple allowed identities require a selection. Autoswitch returns
-`Selection::None`, `AlreadyActive` or `Switched`. Entry reports retain their current
-behavior: both already-active and switched selections suppress the extra report.
+Multiple allowed identities require a selection. Both already-active and switched
+selections suppress the extra entry report.
 
 `guard.rs` parses external push updates into `PushUpdate` and Git history into
 `OutgoingCommit` before enforcing rules. Named OID, author and committer fields
@@ -236,8 +219,8 @@ calls pass through. Fish restores terminal input when initialization is piped in
 5. Add behavior tests in the matching `tests/` directory using `Sandbox`; use small
    unit tests for shared parsing and pending-save boundaries. Register new integration
    files in their owning `mod.rs`.
-6. Update affected usage, README and `docs/help/` text. Update this call map only
-   when an ownership boundary changes; update the testing guide when the harness,
+6. Update affected usage, README and `docs/help/` text. Update the source ownership
+   guide when a boundary changes; update the testing guide when the harness,
    prerequisites or test organization change.
 7. Run the required checks and inspect the diff for unrelated changes.
 

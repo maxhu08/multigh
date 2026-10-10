@@ -49,7 +49,7 @@ every test, so adding a test does not also require updating an inventory.
 These are functional regression tests, not a claim of complete line or branch
 coverage. Assertions check observable outcomes: saved identity policy, commit and
 push acceptance, unchanged settings on failure, forwarded input and terminal
-output. Failed pushes also verify that blocked references were not created.
+output. Outgoing-history tests also check that rejected new refs were not created.
 
 Keep tests focused on command behavior, saved configuration, permission boundaries,
 external failures and hook/shell integration. Prefer functional outcomes over
@@ -92,7 +92,3 @@ cargo test --test integration shell::
 # Show output from a failing interactive test.
 cargo test --test integration commands::repo::picker -- --nocapture
 ```
-
-Add new tests to the directory that owns the behavior and register new files in
-its `mod.rs`. Reuse `Sandbox` for isolated commands and local repositories, and
-`terminal` when keyboard interaction is part of the behavior.

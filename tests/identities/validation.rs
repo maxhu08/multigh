@@ -6,11 +6,10 @@ use std::fs;
 fn malformed_configuration_is_rejected_before_git_settings_change() {
     let sandbox = Sandbox::new();
     let before = fs::read(sandbox.path("gitconfig")).unwrap();
-    let mut malformed = vec![
+    let mut malformed: Vec<_> = vec![
         "".to_owned(),
         "{".to_owned(),
         "[]".to_owned(),
-        "{}".to_owned(),
         "// Only comments".to_owned(),
         "/* Unterminated comment".to_owned(),
         r#"{personal: {"username": "alice", "commit": {"email": "alice@example.com"}}}"#.to_owned(),
@@ -40,70 +39,134 @@ fn malformed_configuration_is_rejected_before_git_settings_change() {
             "\"additional_emails\": [], \"additional_emails\":",
             1,
         ),
-    ];
+    ]
+    .into_iter()
+    .map(|configuration| (configuration, "invalid identity configuration"))
+    .collect();
 
     for key in ["personal", "PERSONAL"] {
-        malformed.push(IDENTITIES.replacen(
+        malformed.push((IDENTITIES.replacen(
             "{",
             &format!(
                 r#"{{"{key}": {{"username":"charlie","commit":{{"email":"charlie@example.com"}}}},"#
             ),
             1,
-        ));
+        ), "Duplicate identity name: personal"));
     }
 
-    for (pointer, value) in [
-        ("/personal/username", json!("-alice")),
-        ("/personal/username", json!("alice_name")),
-        ("/personal/username", json!("")),
-        ("/personal/username", json!(42)),
-        ("/personal/commit/name", json!("")),
-        ("/personal/commit/name", json!("Alice <Example>")),
-        ("/personal/commit/name", json!("Alice\tExample")),
-        ("/personal/commit/name", json!([])),
-        ("/personal/commit/email", json!("")),
-        ("/personal/commit/email", json!("alice@@example.com")),
-        ("/personal/commit/email", json!("alice@")),
-        ("/personal/commit/email", json!("alice example@example.com")),
-        ("/personal/commit/email", Value::Null),
-        ("/personal/commit/additional_emails", json!("not-an-array")),
-        ("/personal/commit/additional_emails", json!([42])),
-        ("/personal/commit/additional_emails", json!([""])),
+    for (pointer, value, message) in [
+        ("/personal/username", json!("-alice"), "Invalid username"),
+        (
+            "/personal/username",
+            json!("alice_name"),
+            "Invalid username",
+        ),
+        ("/personal/username", json!(""), "Invalid username"),
+        (
+            "/personal/username",
+            json!(42),
+            "invalid identity configuration",
+        ),
+        ("/personal/commit/name", json!(""), "Invalid commit name"),
+        (
+            "/personal/commit/name",
+            json!("Alice <Example>"),
+            "Invalid commit name",
+        ),
+        (
+            "/personal/commit/name",
+            json!("Alice\tExample"),
+            "Invalid commit name",
+        ),
+        (
+            "/personal/commit/name",
+            json!([]),
+            "invalid identity configuration",
+        ),
+        ("/personal/commit/email", json!(""), "Invalid email"),
+        (
+            "/personal/commit/email",
+            json!("alice@@example.com"),
+            "Invalid email",
+        ),
+        ("/personal/commit/email", json!("alice@"), "Invalid email"),
+        (
+            "/personal/commit/email",
+            json!("alice example@example.com"),
+            "Invalid email",
+        ),
+        (
+            "/personal/commit/email",
+            Value::Null,
+            "invalid identity configuration",
+        ),
+        (
+            "/personal/commit/additional_emails",
+            json!("not-an-array"),
+            "invalid identity configuration",
+        ),
+        (
+            "/personal/commit/additional_emails",
+            json!([42]),
+            "invalid identity configuration",
+        ),
+        (
+            "/personal/commit/additional_emails",
+            json!([""]),
+            "Invalid email",
+        ),
         (
             "/personal/commit/additional_emails/0",
             json!("not-an-email"),
+            "Invalid email",
         ),
-        ("/school/username", json!("ALICE")),
-        ("/school/commit/email", json!("ALICE@example.com")),
+        ("/school/username", json!("ALICE"), "cannot share"),
+        (
+            "/school/commit/email",
+            json!("ALICE@example.com"),
+            "cannot share",
+        ),
         (
             "/school/commit/additional_emails/0",
             json!("123+ALICE@users.noreply.github.com"),
+            "cannot share",
         ),
         (
             "/personal/commit",
             json!({"email":"alice@example.com", "unknown":true}),
+            "invalid identity configuration",
         ),
         (
             "/personal",
             json!({"username":"alice", "commit":{"email":"alice@example.com"}, "unknown":true}),
+            "invalid identity configuration",
         ),
-        ("/personal", json!({"commit":{"email":"alice@example.com"}})),
-        ("/personal", json!({"username":"alice"})),
-        ("/personal/commit", json!({"name":"Alice"})),
+        (
+            "/personal",
+            json!({"commit":{"email":"alice@example.com"}}),
+            "invalid identity configuration",
+        ),
+        (
+            "/personal",
+            json!({"username":"alice"}),
+            "invalid identity configuration",
+        ),
+        (
+            "/personal/commit",
+            json!({"name":"Alice"}),
+            "invalid identity configuration",
+        ),
     ] {
         let mut document: Value = serde_json::from_str(IDENTITIES).unwrap();
 
         *document.pointer_mut(pointer).unwrap() = value;
-        malformed.push(document.to_string());
+        malformed.push((document.to_string(), message));
     }
 
-    for configuration in malformed {
+    for (configuration, message) in malformed {
         sandbox.write("config/multigh/identities.jsonc", &configuration);
 
-        assert!(
-            !sandbox.run("mgh", &["setup"]).status.success(),
-            "Accepted config: {configuration}"
-        );
+        sandbox.blocked("mgh", &["setup"], message);
         assert_eq!(before, fs::read(sandbox.path("gitconfig")).unwrap());
         assert!(!sandbox.path("state/multigh/identities").exists());
     }

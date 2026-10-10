@@ -249,10 +249,11 @@ fn setup_displays_the_global_file_selected_by_git_for_home_and_xdg_locations() {
         let text = String::from_utf8(output.stdout).unwrap();
 
         assert!(
-            text.contains(&format!(
-                "  Git config                  {}",
-                expected.display()
-            )),
+            text.lines().any(|line| {
+                line.trim_start()
+                    .strip_prefix("Git config")
+                    .is_some_and(|value| value.trim() == expected.to_string_lossy())
+            }),
             "{text}"
         );
         assert!(
@@ -289,4 +290,24 @@ fn onboarding_collects_a_first_identity_and_prints_next_steps() {
     )
     .unwrap();
     assert_eq!(config["personal"]["username"], "alice");
+}
+
+#[test]
+fn empty_identity_configuration_requires_onboarding_without_being_rejected_as_malformed() {
+    let sandbox = Sandbox::new();
+    let configuration = "// No identities yet\n{}\n";
+    sandbox.write("config/multigh/identities.jsonc", configuration);
+    let global = fs::read(sandbox.path("gitconfig")).unwrap();
+    let local = fs::read(sandbox.path("repo/.git/config")).unwrap();
+
+    sandbox.blocked("mgh", &["setup"], "Setup needs your first identity");
+
+    assert_eq!(
+        fs::read_to_string(sandbox.path("config/multigh/identities.jsonc")).unwrap(),
+        configuration
+    );
+    assert_eq!(fs::read(sandbox.path("gitconfig")).unwrap(), global);
+    assert_eq!(fs::read(sandbox.path("repo/.git/config")).unwrap(), local);
+    assert!(!sandbox.path("state/multigh").exists());
+    assert!(!sandbox.path("gh-calls").exists());
 }

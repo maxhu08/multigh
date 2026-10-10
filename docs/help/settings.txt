@@ -3,7 +3,9 @@ Details:
     identity on repo entry/startup; verbose controls allowed-identity
     and detected-hook entry reports; welcome controls the terminal greeting.
     Toggle each independently with on/off; omit state to show its preference.
-    These settings do not disable repo protections or change permissions.
+    These settings preserve repo protections. Enabling autoswitch also runs
+    entry checks in the current repo and may prompt you to choose permissions
+    if none are configured; permissions change only when you save a selection.
 
 Examples:
     mgh settings

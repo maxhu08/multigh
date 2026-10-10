@@ -8,8 +8,8 @@ Details:
 
     Protections default ON in every repo. An explicit repo protections off
     remains OFF after setup. Initial setup enables verbose; subsequent setup
-    preserves global preferences and autoswitch preferences. Existing hooks
-    and unrelated Git settings are preserved. Requires Git 2.45 or newer.
+    preserves global preferences. Existing hooks and unrelated Git settings
+    are preserved. Requires Git 2.45 or newer.
 
 Examples:
     mgh setup

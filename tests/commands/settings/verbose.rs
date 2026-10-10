@@ -46,6 +46,8 @@ fn protections_and_verbose_toggle_independently() {
 fn verbose_preferences_do_not_require_config_or_enable_protections() {
     let sandbox = Sandbox::new();
 
+    sandbox.ok("mgh", &["repo", "protections", "off"]);
+    let local = std::fs::read(sandbox.path("repo/.git/config")).unwrap();
     std::fs::remove_file(sandbox.path("config/multigh/identities.jsonc")).unwrap();
 
     assert!(sandbox.ok("mgh", &["settings", "verbose"]).contains("OFF"));
@@ -55,12 +57,19 @@ fn verbose_preferences_do_not_require_config_or_enable_protections() {
             .contains("ON")
     );
     assert!(sandbox.path("state/multigh/verbose-enabled").is_file());
-    assert!(!sandbox.path("state/multigh/protections-enabled").exists());
+    assert_eq!(
+        std::fs::read(sandbox.path("repo/.git/config")).unwrap(),
+        local
+    );
 
     sandbox.ok("mgh", &["settings", "verbose", "off"]);
     sandbox.ok("mgh", &["settings", "verbose", "off"]);
 
     assert!(sandbox.ok("mgh", &["settings", "verbose"]).contains("OFF"));
+    assert_eq!(
+        std::fs::read(sandbox.path("repo/.git/config")).unwrap(),
+        local
+    );
     assert!(!sandbox.path("gh-calls").exists());
 }
 

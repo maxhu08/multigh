@@ -1,5 +1,4 @@
 use crate::support::{IDENTITIES, Sandbox};
-use std::fs;
 
 #[test]
 fn mixed_case_identity_names_work_in_commands_and_repository_pins() {
@@ -81,25 +80,4 @@ fn mixed_case_identity_names_work_in_commands_and_repository_pins() {
     );
 
     sandbox.commit();
-}
-
-#[test]
-fn case_colliding_identity_names_are_rejected_before_changing_git() {
-    let sandbox = Sandbox::new();
-
-    let before = fs::read(sandbox.path("gitconfig")).unwrap();
-
-    sandbox.write(
-        "config/multigh/identities.jsonc",
-        &IDENTITIES.replacen(
-            "{",
-            r#"{"PERSONAL": {"username": "charlie", "commit": {"email": "charlie@example.com"}},"#,
-            1,
-        ),
-    );
-
-    sandbox.blocked("mgh", &["setup"], "Duplicate identity name: personal");
-
-    assert_eq!(before, fs::read(sandbox.path("gitconfig")).unwrap());
-    assert!(!sandbox.path("state/multigh/identities").exists());
 }

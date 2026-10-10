@@ -179,7 +179,10 @@ fn off_modes_work_with_missing_config_and_unconfigured_entry_still_blocks_commit
     sandbox.commit();
     sandbox.blocked("mgh", &["repo", "protections", "on"], "Read ");
 
-    assert!(!sandbox.path("state/multigh/protections-enabled").exists());
+    assert_eq!(
+        sandbox.ok("git", &["config", "--local", "mgh.protections"]),
+        "false\n"
+    );
 }
 
 #[test]

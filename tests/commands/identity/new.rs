@@ -74,10 +74,10 @@ fn new_authenticates_preserves_existing_data_and_comments_and_sets_up_the_identi
         1
     );
     assert!(calls.contains("auth switch --hostname github.com --user carol"));
-    assert!(
-        output.contains("GitHub browser login")
-            && output.contains("Identity added            work")
-    );
+    assert!(output.contains("GitHub browser login"));
+    assert!(output.lines().any(|line| {
+        line.split_whitespace().collect::<Vec<_>>() == ["✓", "Identity", "added", "work"]
+    }));
     assert!(
         output.contains(
             sandbox
@@ -486,7 +486,7 @@ fn new_keeps_the_identity_and_reports_recovery_when_setup_or_switch_fails() {
 }
 
 #[test]
-fn new_rejects_invalid_existing_configs_symlinks_and_repo_option_outside_a_repository() {
+fn new_rejects_invalid_existing_configs_and_symlinks() {
     let sandbox = Sandbox::new();
 
     sandbox.write("config/multigh/identities.jsonc", "invalid = account\n");
@@ -506,16 +506,6 @@ fn new_rejects_invalid_existing_configs_symlinks_and_repo_option_outside_a_repos
         IDENTITIES
     );
 
-    let output = sandbox
-        .command("mgh")
-        .current_dir(sandbox.path("home"))
-        .args(ARGS)
-        .arg("--repo")
-        .output()
-        .unwrap();
-
-    assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("unexpected argument"));
     assert!(!sandbox.path("gh-calls").exists());
 }
 

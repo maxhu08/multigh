@@ -113,10 +113,35 @@ authentication, commit details and repository identity protections aligned.
   configuration, setup, architecture or testing guidance changes. Check `docs/`,
   README and embedded command help for anything that would become inaccurate.
 
+## Documentation
+
+- Every documentation addition must help a reader use, troubleshoot or maintain
+  this project. Do not add generic boilerplate, task completion reports or
+  speculative planning files unless explicitly requested.
+- Verify behavioral claims against the implementation and coverage claims against
+  the actual assertions. Include prerequisites and meaningful exceptions. Do not
+  make blanket guarantees that a conditional path or a narrower test contradicts.
+- Keep guidance in one owning document and link to it elsewhere. Do not repeat
+  instructions or guarantees, record completed refactors as a diary, or maintain
+  private-function call maps and code inventories that merely duplicate the source.
+
 ## Testing
 
 - Test observable behavior through the actual implementation; do not reproduce
   production logic inside tests.
+- Before adding a test, inspect existing coverage and identify the distinct
+  observable contract or regression it protects. Do not add another test for the
+  same behavior unless it exercises a materially different path or failure mode.
+- Do not add tests that only restate fixture values, trivial assignments or library
+  internals, or pass without exercising production behavior. Simple behavior is
+  worth testing when a failure would break a meaningful application contract;
+  simplicity alone is not a reason to remove a test.
+- Rejection tests must assert the intended diagnostic or error as well as failure,
+  so an unrelated failure cannot satisfy the test.
+- Preservation tests must inspect the actual state the operation could change.
+  Assertions must check meaningful values and relationships rather than incidental
+  counts, implementation details or irrelevant artifacts. Keep exact assertions
+  when those details are themselves part of the contract.
 - Use real Git repositories, local remotes and real shells where practical.
   Simulate GitHub authentication to keep tests offline and independent of identities.
 - Isolate home, Git config, identity config and state with `Sandbox` in `tests/support/`.
@@ -131,6 +156,10 @@ authentication, commit details and repository identity protections aligned.
 - See [the testing guide](docs/testing.md) for prerequisites and focused runs.
 
 ## Checks
+
+Before completing a change, review every added or edited test and documentation
+section against the requirements above. Remove redundant coverage and incidental
+assertions, and correct unsupported claims before reporting the work complete.
 
 Follow [the commit guide](docs/committing.md) for Conventional Commit messages and
 Cocogitto hook setup. Keep commit-message validation compatible with mgh's hooks.

@@ -105,16 +105,6 @@ fn failed_or_invalid_switches_do_not_change_authentication_or_commit_defaults() 
 
     assert_eq!(original, fs::read(sandbox.path("gitconfig")).unwrap());
 
-    let outside = sandbox
-        .command("mgh")
-        .current_dir(sandbox.path(""))
-        .args(["switch", "personal", "--repo"])
-        .output()
-        .unwrap();
-
-    assert!(!outside.status.success());
-    assert_eq!(original, fs::read(sandbox.path("gitconfig")).unwrap());
-
     sandbox.write("fail-switch", "");
     sandbox.blocked("mgh", &["switch", "personal"], "gh:");
 

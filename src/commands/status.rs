@@ -1,6 +1,9 @@
 use crate::{
     descriptions::subcommands::status as descriptions,
-    utils::{config::Config, print::identity},
+    utils::{
+        config::Config,
+        print::{error, identity, padding},
+    },
 };
 use anyhow::{Context, Result, ensure};
 use std::{
@@ -16,7 +19,7 @@ pub(super) fn run(_args: StatusArgs) -> ExitCode {
     match status() {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!("error: {error:#}");
+            error::print(format_args!("{error:#}"));
             ExitCode::FAILURE
         }
     }
@@ -54,7 +57,9 @@ fn status() -> Result<()> {
         .identity_for_username(username)
         .with_context(|| format!("GitHub account '{username}' has no configured identity"))?;
     let mut output = io::stdout().lock();
-    writeln!(output, "Current identity")?;
-    identity::print(&mut output, name, details)?;
+    padding::print(&mut output, |output| {
+        writeln!(output, "Current identity")?;
+        identity::print(output, name, details)
+    })?;
     Ok(())
 }

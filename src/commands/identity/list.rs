@@ -1,4 +1,7 @@
-use crate::utils::{config::Config, print::identity};
+use crate::utils::{
+    config::Config,
+    print::{error, identity, padding},
+};
 use anyhow::Result;
 use std::{
     io::{self, Write},
@@ -13,7 +16,7 @@ pub(super) fn run(_args: ListArgs) -> ExitCode {
     match list() {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!("error: {error:#}");
+            error::print(format_args!("{error:#}"));
             ExitCode::FAILURE
         }
     }
@@ -23,16 +26,21 @@ fn list() -> Result<()> {
     let config = Config::load()?;
     let mut output = io::stdout().lock();
 
-    if config.identities.is_empty() {
-        writeln!(output, "No identities configured")?;
-        return Ok(());
-    }
+    padding::print(&mut output, |output| {
+        if config.identities.is_empty() {
+            return writeln!(output, "No identities configured");
+        }
 
-    writeln!(output, "Identities")?;
+        writeln!(output, "Identities")?;
 
-    for (name, details) in config.identities {
-        identity::print(&mut output, &name, &details)?;
-    }
+        for (index, (name, details)) in config.identities.iter().enumerate() {
+            if index > 0 {
+                writeln!(output)?;
+            }
+            identity::print(output, name, details)?;
+        }
 
+        Ok(())
+    })?;
     Ok(())
 }

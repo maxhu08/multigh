@@ -71,6 +71,6 @@ pub fn run(command: Command) -> ExitCode {
 }
 
 fn not_implemented(name: &str) -> ExitCode {
-    eprintln!("error: {name} is not implemented");
+    crate::utils::print::error::print(format_args!("{name} is not implemented"));
     ExitCode::FAILURE
 }

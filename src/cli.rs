@@ -5,8 +5,7 @@ use clap::Parser;
 #[command(
     version,
     about = descriptions::SELF,
-    arg_required_else_help = true,
-    after_help = descriptions::AFTER_HELP
+    arg_required_else_help = true
 )]
 pub struct Cli {
     #[command(subcommand)]

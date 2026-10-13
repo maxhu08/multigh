@@ -1,13 +1,11 @@
 // SELF describes the containing command itself.
 // subcommands groups descriptions of child commands.
-// flags are switches without values, such as --full.
+// flags are switches without values, such as --help.
 // options take named values, such as --username alice.
 // args are values identified by position without a flag or option name, such as work in switch work.
 
 pub const SELF: &str =
     "Manage GitHub identities across repositories";
-pub const AFTER_HELP: &str =
-    "Unimplemented commands report an error";
 
 pub mod subcommands {
     pub const ONBOARD: &str =

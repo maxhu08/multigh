@@ -4,4 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+jsonc-parser = { version = "0.34", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }

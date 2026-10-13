@@ -1,6 +1,8 @@
 mod cli;
 mod commands;
+#[rustfmt::skip]
 mod descriptions;
+mod utils;
 
 use clap::Parser;
 use std::process::ExitCode;

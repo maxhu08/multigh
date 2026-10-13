@@ -17,12 +17,7 @@ pub mod subcommands {
 
     pub mod status {
         pub const SELF: &str =
-            "Display current identity, repo settings, and GitHub details";
-
-        pub mod flags {
-            pub const FULL: &str =
-                "Include the full GitHub authentication report";
-        }
+            "Display the current identity";
     }
 
     pub mod switch {

@@ -20,6 +20,12 @@ pub struct Identity {
     accepted_emails: BTreeSet<String>,
 }
 
+impl Identity {
+    pub fn matches_username(&self, username: &str) -> bool {
+        self.username.eq_ignore_ascii_case(username)
+    }
+}
+
 pub struct CommitDetails {
     pub name: String,
     pub email: String,
@@ -122,6 +128,13 @@ fn path() -> Result<PathBuf> {
 }
 
 impl Config {
+    pub fn identity_for_username(&self, username: &str) -> Option<(&str, &Identity)> {
+        self.identities
+            .iter()
+            .find(|(_, identity)| identity.matches_username(username))
+            .map(|(name, identity)| (name.as_str(), identity))
+    }
+
     pub fn load() -> Result<Self> {
         let path = path()?;
         let text = fs::read_to_string(&path).with_context(|| {
@@ -185,7 +198,7 @@ impl Config {
 
             ensure!(
                 !identities.values().any(|other: &Identity| {
-                    other.username.eq_ignore_ascii_case(&username)
+                    other.matches_username(&username)
                         || !other.accepted_emails.is_disjoint(&accepted_emails)
                 }),
                 "Identities cannot share usernames or email addresses"

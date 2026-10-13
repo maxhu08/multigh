@@ -1,4 +1,4 @@
-use crate::utils::config::Config;
+use crate::utils::{config::Config, print::identity};
 use anyhow::Result;
 use std::{
     io::{self, Write},
@@ -30,12 +30,8 @@ fn list() -> Result<()> {
 
     writeln!(output, "Identities")?;
 
-    for (name, identity) in config.identities {
-        writeln!(output, "  {name}")?;
-        writeln!(output, "    GitHub username: {}", identity.username)?;
-        writeln!(output, "    Commit name: {}", identity.commit.name)?;
-        writeln!(output, "    Commit email: {}", identity.commit.email)?;
-        writeln!(output)?;
+    for (name, details) in config.identities {
+        identity::print(&mut output, &name, &details)?;
     }
 
     Ok(())

@@ -118,7 +118,9 @@ fn path() -> Result<PathBuf> {
             PathBuf::from(home).join(".config")
         }
     };
-    let path = directory.join("multigh/identities.jsonc");
+    let path = directory
+        .join(env!("CARGO_PKG_NAME"))
+        .join("identities.jsonc");
 
     Ok(if path.is_absolute() {
         path

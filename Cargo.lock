@@ -126,7 +126,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "multigh"
+name = "multighr"
 version = "0.1.0"
 dependencies = [
  "anyhow",

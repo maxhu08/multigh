@@ -55,11 +55,11 @@ pub mod subcommands {
 
     pub mod repo {
         pub const SELF: &str =
-            "Manage this repository's multigh settings; defaults to showing status";
+            "Manage this repository's identity settings; defaults to showing status";
 
         pub mod subcommands {
             pub const STATUS: &str =
-                "Show this repository's current multigh identity and protections settings";
+                "Show this repository's current identity and protections settings";
             pub const CHECK: &str =
                 "Check authentication and commit identity";
             pub const PROTECTIONS: &str =
@@ -105,7 +105,7 @@ pub mod subcommands {
             pub const INIT: &str =
                 "Print a Fish, Bash or Zsh script for repository-entry checks, git init prompts and tab completion";
             pub const COMPLETIONS: &str =
-                "Print standalone tab-completion definitions for multigh commands, options and fixed values";
+                "Print standalone tab-completion definitions for commands, options and fixed values";
         }
     }
 

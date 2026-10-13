@@ -1,7 +1,11 @@
 [package]
-name = "multigh"
+name = "multighr"
 version = "0.1.0"
 edition = "2024"
+
+[[bin]]
+name = "mghr"
+path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"

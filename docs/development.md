@@ -45,8 +45,9 @@ registries or interchangeable backend traits.
 | [`shell/`](../shell/) | Fish, Bash and Zsh scripts embedded by `commands/shell`. |
 
 `commands/identity/form.rs` shares identity text inputs. Permission forms and
-reports belong to `commands/repo/selection.rs`; autoswitch's picker belongs to
-`commands/settings/autoswitch.rs`. Policy helpers have no terminal dependency.
+selection workflows belong to `commands/repo/selection.rs`; autoswitch's picker
+belongs to `commands/settings/autoswitch.rs`. Policy helpers have no terminal
+dependency.
 
 `src/utils/` groups general helpers used across commands and domain modules.
 Its `mod.rs` declares the modules; callers import the specific helper module, such
@@ -187,9 +188,30 @@ stdout and stderr terminals. Forms preserve existing defaults and selections and
 cancel without saving. Permission checklists require at least one allowed identity.
 Noninteractive options remain supported.
 
+Commands gather report data and choose which sections to show; `utils/output.rs`
+owns the shared presentation. Use its identity, account, commit-detail, path,
+permission, hook and preference functions instead of choosing colors or printing
+rows in commands. These functions only format and print their arguments; they do
+not read configuration, inspect repositories or run external commands.
+
+The palette follows the value's meaning: identity names are bold cyan, GitHub
+usernames purple, commit names and emails orange, and file paths slate gray.
+Headings are pink; success markers are green, warnings amber and errors rose.
+Before/after values retain their semantic colors; arrows indicate changes.
+Colors require a terminal and are disabled by `NO_COLOR` or `TERM=dumb`.
+
 Output helpers name stdout and stderr with `output::Stream` rather than a flag.
-Full GitHub authentication reports capture stdout and stderr. Status and doctor
-only read; welcome uses selected local login without a live authentication request.
+Reports have one empty line before and after them, with a single empty line
+between sections and related rows kept together. Shared padding also covers
+warnings, errors, clap help and form boundaries. `main` finishes pending padding
+on success and failure; commands must not add their own blank lines. Silent
+commands stay silent. Shell initialization, completions and inherited output from
+Git, GitHub CLI and existing hooks retain their own formatting. Full GitHub
+authentication reports capture stdout and stderr and receive block padding,
+retaining GitHub CLI text and colors within those blocks.
+
+Status and doctor only read; welcome uses selected local login without a live
+authentication request.
 
 Interactive shell initialization loads clap-generated command and option
 completions through `mgh shell completions`. Zsh initializes its completion system

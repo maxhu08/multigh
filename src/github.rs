@@ -101,7 +101,11 @@ pub fn login(username: &str) -> Result<()> {
         return Ok(());
     }
 
-    crate::utils::output::section(&format!("Sign in to GitHub as {username}"));
+    output::section(&format!(
+        "Sign in to GitHub as {}",
+        output::username(username, output::Stream::Stdout)
+    ));
+    output::finish();
 
     crate::utils::process::interactive(
         "gh",

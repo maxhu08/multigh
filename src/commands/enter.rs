@@ -81,34 +81,12 @@ pub(super) fn enter(repository: &Repository, path: PathBuf) -> Result<()> {
             output::section("Existing hooks detected");
 
             if protections_active {
-                println!(
-                    "  {}",
-                    output::paint(
-                        "Identity protections are active; your existing checks are preserved.",
-                        output::Color::Changed,
-                        output::Stream::Stdout
-                    )
+                output::text(
+                    "Identity protections are active; your existing checks are preserved.",
                 );
             }
-            println!();
             for hook in detected {
-                output::row(
-                    &hook.name,
-                    &format!(
-                        "{}{}",
-                        hook.path.display(),
-                        if hook.executable {
-                            ""
-                        } else {
-                            " (not executable; skipped)"
-                        }
-                    ),
-                    if hook.executable {
-                        output::Color::Value
-                    } else {
-                        output::Color::Warning
-                    },
-                );
+                output::hook(&hook.name, &hook.path, hook.executable);
             }
         }
 

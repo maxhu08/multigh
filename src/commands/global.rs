@@ -18,7 +18,6 @@ impl Report {
         } else {
             "Global Git config unchanged".to_owned()
         });
-        println!();
         *self = Self::Printed;
     }
 

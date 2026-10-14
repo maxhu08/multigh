@@ -85,27 +85,12 @@ pub(super) fn report(
     selected: &SwitchResult<'_>,
     detail: ReportDetail,
 ) -> Result<()> {
-    output::heading(
+    output::identity_heading(
         "✓ Identity selected",
         &selected.identity_name.to_ascii_lowercase(),
-        output::Color::Changed,
     );
-    output::change(
-        "GitHub account",
-        &selected.previous_login,
-        &selected.identity.username,
-    );
-    output::section("Global commit defaults");
-    output::change(
-        "Name",
-        &selected.previous_global.name,
-        &selected.identity.commit_name,
-    );
-    output::change(
-        "Email",
-        &selected.previous_global.email,
-        &selected.identity.commit_email,
-    );
+    output::account_change(&selected.previous_login, &selected.identity.username);
+    output::global_commit_details(selected.identity, &selected.previous_global);
 
     if matches!(detail, ReportDetail::Detailed)
         && let Some(repository) = repository
@@ -117,7 +102,6 @@ pub(super) fn report(
             selected.previous_effective.as_ref(),
         )?;
     }
-    println!();
 
     Ok(())
 }

@@ -2,25 +2,18 @@ use crate::{
     config::Config,
     git, github, hooks,
     repository::Repository,
-    utils::{
-        output::{self, Color},
-        process,
-    },
+    utils::{output, process},
 };
 use anyhow::{Result, ensure};
 use std::path::PathBuf;
 
 pub fn run(path: PathBuf) -> Result<()> {
     output::section("multigh diagnostics");
-    output::row("Accounts", &path.to_string_lossy(), Color::Muted);
+    output::path("Accounts", &path);
     let mut healthy = true;
     for program in ["git", "gh"] {
         match process::run(program, &["--version"]) {
-            Ok(version) => output::row(
-                program,
-                version.lines().next().unwrap_or("available"),
-                Color::Changed,
-            ),
+            Ok(version) => output::success(program, version.lines().next().unwrap_or("available")),
             Err(error) => {
                 healthy = false;
                 output::warning(&format!("{error:#}"));
@@ -41,9 +34,7 @@ pub fn run(path: PathBuf) -> Result<()> {
         }
     }
     match Config::load(path) {
-        Ok(config) if !config.identities.is_empty() => {
-            output::row("Configuration", "Valid", Color::Changed)
-        }
+        Ok(config) if !config.identities.is_empty() => output::success("Configuration", "Valid"),
         Ok(_) => {
             healthy = false;
             output::warning("No identities configured. Run mgh identity new.");
@@ -54,7 +45,7 @@ pub fn run(path: PathBuf) -> Result<()> {
         }
     }
     match github::active() {
-        Ok(account) => output::row("GitHub account", &account, Color::Changed),
+        Ok(account) => output::github_username("GitHub account", &account),
         Err(error) => {
             healthy = false;
             output::warning(&format!("{error:#}"));

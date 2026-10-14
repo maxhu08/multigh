@@ -5,7 +5,10 @@ use crate::{
         editor::{Editor, IdentityInput, PendingUpdate},
     },
     git, github,
-    utils::{output, terminal},
+    utils::{
+        output::{self, IdentityField},
+        terminal,
+    },
 };
 use anyhow::{Context, Result, ensure};
 use std::path::PathBuf;
@@ -23,25 +26,25 @@ pub fn edit(path: PathBuf, identity_name: &str, fields: IdentityFields) -> Resul
     );
 
     if interactive {
-        cliclack::intro(output::form_heading(
+        output::form_intro(&output::form_heading(
             "Edit identity",
-            &identity_name.to_ascii_lowercase(),
+            &output::identity_name(&identity_name.to_ascii_lowercase(), output::Stream::Stderr),
         ))?;
     }
     let new_username = if interactive {
-        super::form::field(None, "GitHub username", Some(&identity.username))?
+        super::form::field(None, IdentityField::Username, Some(&identity.username))?
     } else {
         fields.username.unwrap_or_else(|| identity.username.clone())
     };
     let email = if interactive {
-        super::form::field(None, "Commit email", Some(&identity.commit_email))?
+        super::form::field(None, IdentityField::Email, Some(&identity.commit_email))?
     } else {
         fields
             .email
             .unwrap_or_else(|| identity.commit_email.clone())
     };
     let commit_name = if interactive {
-        super::form::field(None, "Commit name", Some(&identity.commit_name))?
+        super::form::field(None, IdentityField::CommitName, Some(&identity.commit_name))?
     } else {
         fields.name.unwrap_or_else(|| identity.commit_name.clone())
     };
@@ -61,7 +64,7 @@ pub fn edit(path: PathBuf, identity_name: &str, fields: IdentityFields) -> Resul
     };
     let pending = editor.edit(identity_name, &input)?;
     if interactive {
-        cliclack::outro("Identity details entered")?;
+        output::form_outro("Identity details entered")?;
     }
     github::login(&pending.identity(identity_name)?.username)?;
     let updated = save(pending, identity_name, "updated")?;
@@ -91,16 +94,11 @@ pub fn remove(path: PathBuf, identity_name: &str) -> Result<()> {
 fn save(pending: PendingUpdate, identity_name: &str, description: &str) -> Result<Config> {
     let updated = pending.save("Configuration changed during editing; retry the command")?;
 
-    output::heading(
+    output::identity_heading(
         &format!("✓ Global identity {description}"),
         &identity_name.to_ascii_lowercase(),
-        output::Color::Changed,
     );
-    output::row(
-        "Accounts",
-        &updated.path.to_string_lossy(),
-        output::Color::Changed,
-    );
+    output::path("Accounts", &updated.path);
 
     Ok(updated)
 }

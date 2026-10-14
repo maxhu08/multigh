@@ -55,7 +55,8 @@ Keep tests focused on command behavior, saved configuration, permission boundari
 external failures and hook/shell integration. Prefer functional outcomes over
 presentation details or behavior owned by dependencies. Diagnostic tests should
 check useful information without requiring a particular layout. Status behavior
-tests normalize report whitespace; focused output tests cover alignment separately.
+tests normalize report whitespace; focused output tests cover alignment, blank-line
+padding and semantic colors across reports using redirected output and terminals.
 Preserve existing JSONC comments and formatting in tests because editing must retain
 the user's file.
 Cocogitto coverage checks coexistence with mgh; it does not retest Cocogitto's parser

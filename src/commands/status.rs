@@ -3,7 +3,7 @@ use crate::{
     git, github, guard, hooks, policy,
     repository::Repository,
     settings,
-    utils::output::{self, Color},
+    utils::output,
 };
 use anyhow::{Context, Result, ensure};
 use std::path::PathBuf;
@@ -14,38 +14,28 @@ pub fn repository(
     active: Option<&str>,
     before: Option<&CommitDetails>,
 ) -> Result<()> {
-    output::heading(
+    output::repository_heading(
         "Current repository",
         &repository
             .root
             .file_name()
             .unwrap_or_default()
             .to_string_lossy(),
-        Color::Heading,
     );
-    output::row(
-        "Repo config",
-        &repository.config_path().to_string_lossy(),
-        Color::Muted,
-    );
+    output::path("Repo config", &repository.config_path());
 
     let allowed = policy::allowed(repository, config)?;
 
-    output::row(
+    output::identity_value(
         "Active identity",
         active
             .and_then(|login| config.identity_for_username(login))
             .map(|(name, _)| name)
             .unwrap_or("not configured"),
-        Color::Changed,
     );
-    output::row(
-        "GitHub username",
-        active.unwrap_or("unavailable"),
-        Color::Value,
-    );
+    output::github_username("GitHub username", active.unwrap_or("unavailable"));
 
-    output::row(
+    output::identity_value(
         "Allowed identities",
         &if allowed.is_empty() {
             "none selected".to_owned()
@@ -56,7 +46,6 @@ pub fn repository(
                 .collect::<Vec<_>>()
                 .join(", ")
         },
-        Color::Value,
     );
 
     let details = CommitDetails {
@@ -64,43 +53,28 @@ pub fn repository(
         email: repository.value("user.email")?.unwrap_or_default(),
     };
 
-    if let Some(before) = before {
-        output::change("Commit name", &before.name, &details.name);
-        output::change("Commit email", &before.email, &details.email);
-    } else {
-        output::row("Commit name", &details.name, Color::Value);
-        output::row("Commit email", &details.email, Color::Value);
-    }
+    output::commit_details(&details, before);
 
     let enabled = settings::protections(repository)?;
     let problems = hooks::readiness::problems(repository)?;
     let installed = problems.is_empty();
 
-    output::row(
-        "Protection",
-        if !enabled {
-            "OFF"
-        } else if installed {
-            "Commit + push checks enabled"
-        } else {
-            "Shared hooks unavailable or overridden"
-        },
-        if enabled && installed {
-            Color::Changed
-        } else {
-            Color::Warning
-        },
-    );
+    if enabled && installed {
+        output::success("Protection", "Commit + push checks enabled");
+    } else {
+        output::warning_row(
+            "Protection",
+            if enabled {
+                "Shared hooks unavailable or overridden"
+            } else {
+                "OFF"
+            },
+        );
+    }
 
-    let autoswitch = settings::enabled(settings::Preference::Autoswitch)?;
-    output::row(
+    output::toggle(
         "Autoswitch (global)",
-        if autoswitch { "ON" } else { "OFF" },
-        if autoswitch {
-            Color::Changed
-        } else {
-            Color::Muted
-        },
+        settings::enabled(settings::Preference::Autoswitch)?,
     );
 
     if enabled {
@@ -117,11 +91,7 @@ pub fn repository(
             if let Err(error) = guard::commit_details(repository, identity_name, identity) {
                 output::warning(&error.to_string());
             } else {
-                output::row(
-                    "Status",
-                    "✓ Identity and commit details match",
-                    Color::Changed,
-                );
+                output::success("Status", "✓ Identity and commit details match");
             }
         }
         Err(error) => output::warning(&error.to_string()),
@@ -164,40 +134,18 @@ pub fn run(path: PathBuf, full: bool) -> Result<()> {
         });
 
         for account in unconfigured {
-            println!(
-                "  {}{}",
-                output::paint(
-                    account.login.as_deref().unwrap_or("unknown"),
-                    Color::Value,
-                    output::Stream::Stdout
-                ),
-                if account.active {
-                    format!(
-                        " {}",
-                        output::paint("(Active)", Color::Changed, output::Stream::Stdout)
-                    )
-                } else {
-                    String::new()
-                }
+            output::account(
+                account.login.as_deref().unwrap_or("unknown"),
+                account.active,
             );
 
             if let Some(state) = account.state.as_deref().filter(|state| *state != "success") {
                 output::warning(state);
             }
-
-            println!();
         }
     }
 
-    output::section("Accounts");
-    println!(
-        "  {}",
-        output::paint(
-            &path.to_string_lossy(),
-            Color::Muted,
-            output::Stream::Stdout
-        )
-    );
+    output::path_section("Accounts", &path);
 
     match config {
         Ok(config) => {
@@ -207,8 +155,6 @@ pub fn run(path: PathBuf, full: bool) -> Result<()> {
         }
         Err(error) => output::warning(&format!("{error:#}")),
     }
-
-    println!();
 
     if full {
         let result = github::report()?;
@@ -240,8 +186,7 @@ pub fn identities(config: &Config) -> Result<()> {
         }
     };
     print_identities(config, &accounts)?;
-    output::section("Accounts");
-    println!("  {}", config.path.display());
+    output::path_section("Accounts", &config.path);
     Ok(())
 }
 
@@ -255,36 +200,13 @@ fn print_identities(config: &Config, accounts: &[github::Account]) -> Result<()>
                 .as_deref()
                 .is_some_and(|login| identity.matches_username(login))
         });
-        let marker = match account {
-            Some(account) if account.active => {
-                format!(
-                    " {}",
-                    output::paint("(Active)", Color::Changed, output::Stream::Stdout)
-                )
-            }
-            None => format!(
-                " {}",
-                output::paint("(Not signed in)", Color::Warning, output::Stream::Stdout)
-            ),
-            _ => String::new(),
+        let state = match account {
+            Some(account) if account.active => output::AccountState::Active,
+            Some(_) => output::AccountState::SignedIn,
+            None => output::AccountState::NotSignedIn,
         };
-
-        println!(
-            "  {}{marker}",
-            output::paint(identity_name, Color::Value, output::Stream::Stdout),
-        );
-        output::nested_row("GitHub username", &identity.username, Color::Value, 4);
-        output::nested_row("Commit name", &identity.commit_name, Color::Value, 4);
-        output::nested_row("Commit email", &identity.commit_email, Color::Value, 4);
-
         let location = git::identity_files::path(&git::identity_files::directory()?, identity_name);
-
-        output::nested_row(
-            "Identity file",
-            &location.to_string_lossy(),
-            Color::Muted,
-            4,
-        );
+        output::identity(identity_name, identity, &location, state);
 
         if let Some(state) = account
             .and_then(|account| account.state.as_deref())
@@ -292,8 +214,6 @@ fn print_identities(config: &Config, accounts: &[github::Account]) -> Result<()>
         {
             output::warning(state);
         }
-
-        println!();
     }
     Ok(())
 }

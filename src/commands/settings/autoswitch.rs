@@ -25,19 +25,8 @@ pub fn select(repository: &Repository, config: &Config) -> Result<Selection> {
     });
     let name = if allowed.len() == 1 {
         let name = allowed.first().unwrap();
-        println!();
-        output::row(
-            "Autoswitch",
-            &if current.is_some() {
-                format!("Only one allowed identity detected; selected {name} (already active).")
-            } else {
-                format!("Only one allowed identity detected; selecting {name}.")
-            },
-            output::Color::Changed,
-        );
-
+        output::autoswitch(name, current.is_some());
         if current.is_some() {
-            println!();
             return Ok(Selection::AlreadyActive);
         }
 
@@ -47,16 +36,20 @@ pub fn select(repository: &Repository, config: &Config) -> Result<Selection> {
             terminal::interactive(),
             "Several identities are allowed; choose one in an interactive terminal.\nRun: mgh switch <allowed-identity>"
         );
-        cliclack::intro("Switch identity")?;
+        output::form_intro("Switch identity")?;
         let mut prompt = cliclack::select("Which allowed identity should be active?").max_rows(7);
         if let Some(current) = current {
             prompt = prompt.initial_value(current.clone());
         }
         for name in &allowed {
-            prompt = prompt.item(name.clone(), name, &config.identities[name].username);
+            prompt = prompt.item(
+                name.clone(),
+                output::identity_name(name, output::Stream::Stderr),
+                output::username(&config.identities[name].username, output::Stream::Stderr),
+            );
         }
         let selected = prompt.interact()?;
-        cliclack::outro("Identity chosen")?;
+        output::form_outro("Identity chosen")?;
         selected
     };
     super::super::global::update(&format!("mgh switch {name}"), |global, report| {

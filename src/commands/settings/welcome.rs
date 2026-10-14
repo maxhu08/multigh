@@ -1,8 +1,4 @@
-use crate::{
-    config::Config,
-    git, github, policy, settings,
-    utils::output::{self, Color},
-};
+use crate::{config::Config, git, github, policy, settings, utils::output};
 use anyhow::Result;
 use std::path::PathBuf;
 
@@ -34,17 +30,12 @@ pub fn run(path: PathBuf) -> Result<()> {
         .map(|(identity_name, _)| identity_name)
         .unwrap_or("not configured");
 
-    output::heading("Identity", selected_identity, Color::Changed);
-    output::row(
+    output::identity_heading("Identity", selected_identity);
+    output::github_username(
         "GitHub username",
         selected.as_deref().unwrap_or("unavailable"),
-        Color::Value,
     );
-    output::row(
-        "Commit email",
-        value("user.email").unwrap_or("not configured"),
-        Color::Value,
-    );
+    output::commit_email(value("user.email").unwrap_or("not configured"));
 
     match config {
         Ok(config) => {
@@ -52,7 +43,6 @@ pub fn run(path: PathBuf) -> Result<()> {
                 Ok(names) => names,
                 Err(error) => {
                     output::warning(&error.to_string());
-                    println!();
                     return Ok(());
                 }
             };
@@ -77,14 +67,17 @@ pub fn run(path: PathBuf) -> Result<()> {
                     value("user.name").unwrap_or_default(),
                     value("user.email").unwrap_or_default(),
                 ) {
-                    output::warning(&format!("Commit details need: mgh switch {identity_name}"));
+                    output::warning(&format!(
+                        "Commit details need: mgh switch {}",
+                        output::identity_name(identity_name, output::Stream::Stdout)
+                    ));
                 }
             } else if !identity_names.is_empty() {
                 output::warning(&format!(
                     "This repository needs: mgh switch {}",
                     identity_names
                         .iter()
-                        .map(String::as_str)
+                        .map(|name| output::identity_name(name, output::Stream::Stdout))
                         .collect::<Vec<_>>()
                         .join(" or ")
                 ));
@@ -92,8 +85,6 @@ pub fn run(path: PathBuf) -> Result<()> {
         }
         Err(error) => output::warning(&format!("{error:#}")),
     }
-
-    println!();
 
     Ok(())
 }

@@ -5,7 +5,10 @@ use crate::{
         editor::{Editor, IdentityInput},
     },
     github,
-    utils::{output, process, terminal},
+    utils::{
+        output::{self, IdentityField},
+        process, terminal,
+    },
 };
 use anyhow::{Result, ensure};
 use std::path::PathBuf;
@@ -24,19 +27,19 @@ pub(in crate::commands) fn create(
     let editor = Editor::open(path)?;
 
     if terminal::interactive() {
-        cliclack::intro("Add new identity")?;
+        output::form_intro("Add new identity")?;
     } else {
         output::section("Add new identity");
     }
 
     let identity_name =
-        super::form::field(identity_name, "Identity name", None)?.to_ascii_lowercase();
-    let username = super::form::field(fields.username, "GitHub username", None)?;
-    let commit_name = super::form::field(fields.name, "Commit name", Some(&username))?;
-    let commit_email = super::form::field(fields.email, "Commit email", None)?;
+        super::form::field(identity_name, IdentityField::Name, None)?.to_ascii_lowercase();
+    let username = super::form::field(fields.username, IdentityField::Username, None)?;
+    let commit_name = super::form::field(fields.name, IdentityField::CommitName, Some(&username))?;
+    let commit_email = super::form::field(fields.email, IdentityField::Email, None)?;
 
     if terminal::interactive() {
-        cliclack::outro("Identity details entered")?;
+        output::form_outro("Identity details entered")?;
     }
 
     for value in [&identity_name, &username, &commit_name, &commit_email] {
@@ -69,12 +72,8 @@ pub(in crate::commands) fn create(
 }
 
 pub(in crate::commands) fn report(config: &Config, identity_name: &str) {
-    output::heading("✓ Identity added", identity_name, output::Color::Changed);
-    output::row(
-        "Accounts",
-        &config.path.to_string_lossy(),
-        output::Color::Changed,
-    );
+    output::identity_heading("✓ Identity added", identity_name);
+    output::path("Accounts", &config.path);
 }
 
 pub(in crate::commands) fn recovery_instructions(config: &Config, identity_name: &str) -> String {

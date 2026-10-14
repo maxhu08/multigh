@@ -5,7 +5,7 @@ use crate::{
     cli::{SettingsCommand, Toggle},
     repository::Repository,
     settings::{self, Preference},
-    utils::output::{self, Color},
+    utils::output,
 };
 use anyhow::Result;
 use std::path::PathBuf;
@@ -27,19 +27,7 @@ pub fn report(preference: Preference) -> Result<()> {
         ),
     };
 
-    if preference == Preference::Autoswitch {
-        println!();
-    }
-    output::row(
-        label,
-        if enabled { "ON" } else { "OFF" },
-        if enabled {
-            Color::Changed
-        } else {
-            Color::Muted
-        },
-    );
-    println!("  {description}\n");
+    output::preference(label, enabled, description);
     Ok(())
 }
 

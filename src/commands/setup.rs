@@ -3,10 +3,7 @@ use crate::{
     git, hooks, policy,
     repository::Repository,
     settings,
-    utils::{
-        output::{self, Color},
-        terminal,
-    },
+    utils::{output, terminal},
 };
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
@@ -29,7 +26,7 @@ pub fn run(path: PathBuf) -> Result<()> {
             path.display()
         );
         output::section("Set up multigh");
-        output::row("Accounts", &path.to_string_lossy(), Color::Muted);
+        output::path("Accounts", &path);
         let (config, name) = super::identity::new::create(path, None, Default::default())?;
         super::identity::new::report(&config, &name);
         (config, Some(name))
@@ -37,8 +34,9 @@ pub fn run(path: PathBuf) -> Result<()> {
 
     configure(&config, first_identity.as_deref())?;
 
-    println!("  Add more identities: mgh identity new");
-    println!("  Choose permissions in a repo: mgh repo allowed update\n");
+    output::paragraph(
+        "Add more identities: mgh identity new\nChoose permissions in a repo: mgh repo allowed update",
+    );
     Ok(())
 }
 
@@ -79,36 +77,30 @@ pub(super) fn report(
     reporting: &mut super::global::Report,
 ) -> Result<()> {
     output::section("✓ Identity rules updated");
-    output::row("Accounts", &config.path.to_string_lossy(), Color::Muted);
-    output::row(
-        "Git config",
-        &git::global::path()?.to_string_lossy(),
-        Color::Muted,
-    );
+    output::path("Accounts", &config.path);
+    output::path("Git config", &git::global::path()?);
     for name in config.identities.keys() {
-        output::row(
-            &format!("Identity ({name})"),
-            &git::identity_files::path(directory, name).to_string_lossy(),
-            Color::Changed,
-        );
+        output::identity_file(name, &git::identity_files::path(directory, name));
     }
     reporting.print(global);
     if let Some(repository) = repository {
         super::repo::report(repository)?;
     } else {
-        output::row("Protections", "ON by default", Color::Changed);
-        println!(
-            "  Commits and pushes require allowed identities; use mgh repo protections off for a repo exception.\n"
+        output::success("Protections", "ON by default");
+        output::text(
+            "Commits and pushes require allowed identities; use mgh repo protections off for a repo exception.",
         );
     }
     super::settings::report(settings::Preference::Verbose)?;
     super::settings::report(settings::Preference::Autoswitch)?;
-    println!(
-        "  Load mgh shell init <fish|bash|zsh> in your shell config for entry prompts and reports.\n"
+    output::paragraph(
+        "Load mgh shell init <fish|bash|zsh> in your shell config for entry prompts and reports.",
     );
-    println!("  Fish (~/.config/fish/config.fish): mgh shell init fish | source");
-    println!("  Bash (~/.bashrc): eval \"$(mgh shell init bash)\"");
-    println!("  Zsh (~/.zshrc): eval \"$(mgh shell init zsh)\"\n");
+    output::paragraph(concat!(
+        "Fish (~/.config/fish/config.fish): mgh shell init fish | source\n",
+        "Bash (~/.bashrc): eval \"$(mgh shell init bash)\"\n",
+        "Zsh (~/.zshrc): eval \"$(mgh shell init zsh)\""
+    ));
     Ok(())
 }
 

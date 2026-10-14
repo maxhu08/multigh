@@ -7,7 +7,7 @@ use crate::{
     git, github, guard, hooks, policy,
     repository::Repository,
     settings,
-    utils::output::{self, Color},
+    utils::output,
 };
 use anyhow::Result;
 use std::path::PathBuf;
@@ -48,25 +48,15 @@ pub fn run(path: PathBuf, command: Option<RepoCommand>) -> Result<()> {
 
 pub fn report(repository: &Repository) -> Result<()> {
     let enabled = settings::protections(repository)?;
-    output::heading(
+    output::repository_heading(
         "Repository",
         &repository.run(&["rev-parse", "--absolute-git-dir"])?,
-        Color::Heading,
     );
-    output::row(
-        "Repo config",
-        &repository.config_path().to_string_lossy(),
-        Color::Muted,
-    );
-    output::row(
+    output::path("Repo config", &repository.config_path());
+    output::preference(
         "Protections",
-        if enabled { "ON" } else { "OFF" },
-        if enabled {
-            Color::Changed
-        } else {
-            Color::Muted
-        },
+        enabled,
+        "Block commits and pushes from identities not allowed in this repository.",
     );
-    println!("  Block commits and pushes from identities not allowed in this repository.\n");
     Ok(())
 }

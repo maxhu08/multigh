@@ -1,0 +1,8 @@
+ignore_merge_commits = true
+
+[git_hooks.commit-msg]
+script = """#!/bin/sh
+set -eu
+
+cog verify --ignore-merge-commits --file "$1"
+"""

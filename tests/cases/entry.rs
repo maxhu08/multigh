@@ -12,7 +12,9 @@ fn entry_all_off_and_noninteractive_guidance_and_partial_preferences() {
     let env = Sandbox::new();
     env.init_repo();
     env.set_local("mgh.protections", "false");
-    env.success(&["internal", "enter"]);
+    let o = env.success(&["internal", "enter"]);
+    assert!(o.stdout.is_empty());
+    assert!(o.stderr.is_empty());
     assert!(!env.root.join("gh.log").exists());
     assert!(!env.state.exists());
     env.write_identities();
@@ -118,12 +120,65 @@ fn sole_identity_autoswitch_skips_an_already_selected_account() {
     );
     env.success(&["settings", "verbose", "off"]);
     let o = env.success(&["internal", "enter"]);
-    assert!(o.stdout.is_empty());
+    let text = out(&o);
+    assert_eq!(
+        text,
+        "\n    Autoswitch: checking identity; work is allowed, no switch needed.\n\n"
+    );
     assert!(o.stderr.is_empty());
 }
 
-/// Autoswitch must show configured identity transitions and hide low-level internal Git change
-/// reports.
+/// Autoswitch must flush feedback before slow GitHub calls and finish one sentence with the
+/// actual success or failure.
+#[test]
+fn autoswitch_reports_progress_before_querying_github() {
+    let env = Sandbox::new();
+    env.init_repo();
+    env.setup_defaults();
+    env.success(&["repo", "allowed", "add", "work"]);
+    env.success(&["settings", "autoswitch", "on"]);
+    env.success(&["switch", "personal"]);
+    let captured = env.root.join("progress.txt");
+    let o = env
+        .mgh(&["internal", "enter"])
+        .env("MGH_SELECTED_EXPECT_OUTPUT", &captured)
+        .stdout(fs::File::create(&captured).unwrap())
+        .output()
+        .unwrap();
+    assert_ok(&o);
+    let text = fs::read_to_string(&captured).unwrap();
+    assert_eq!(
+        text,
+        "\n    Autoswitch: checking identity; personal is not allowed, switching to work… done.\n\n"
+    );
+    assert_eq!(env.accounts()["selected"], "alice-work");
+
+    env.success(&["switch", "personal"]);
+    let o = env
+        .mgh(&["internal", "enter"])
+        .env("MGH_SELECTED_EXPECT_OUTPUT", &captured)
+        .env("MGH_SWITCH_FAIL", "1")
+        .stdout(fs::File::create(&captured).unwrap())
+        .output()
+        .unwrap();
+    assert_ok(&o);
+    let text = fs::read_to_string(captured).unwrap();
+    assert!(
+        text.contains("personal is not allowed, switching to work…"),
+        "{text}"
+    );
+    assert!(text.contains("autoswitch failed:"), "{text}");
+    assert!(!text.contains("done."), "{text}");
+    assert_eq!(
+        text.lines().filter(|line| !line.is_empty()).count(),
+        1,
+        "{text}"
+    );
+    assert_eq!(env.accounts()["selected"], "alice");
+}
+
+/// Autoswitch must summarize the current and target identities in one sentence while hiding
+/// internal Git details, even with verbose reports enabled.
 #[test]
 fn entry_reports_identity_transition_without_internal_git_details() {
     let env = Sandbox::new();
@@ -135,16 +190,14 @@ fn entry_reports_identity_transition_without_internal_git_details() {
     env.git_without_hooks(&["config", "--global", "--unset-all", "core.hooksPath"]);
     let o = env.success(&["internal", "enter"]);
     let text = out(&o);
-    assert!(
-        text.starts_with("\n  Autoswitch [personal → work]\n"),
-        "{text}"
+    assert_eq!(
+        text,
+        "\n    Autoswitch: checking identity; personal is not allowed, switching to work… done.\n\n"
     );
     assert!(!text.contains("Global Git config"), "{text}");
     assert!(!text.contains("mgh internal"), "{text}");
     assert!(!text.contains("user.name"), "{text}");
     assert!(!text.contains("user.email"), "{text}");
-    assert!(text.contains("    GitHub username"), "{text}");
-    assert!(text.contains("alice → alice-work"), "{text}");
     assert_eq!(
         env.git_without_hooks(&["config", "--global", "user.name"]),
         "Alice Work"
@@ -176,9 +229,9 @@ fn entry_reports_identity_transition_without_internal_git_details() {
         ]
     }));
     let text = out(&env.success(&["internal", "enter"]));
-    assert!(
-        text.starts_with("\n  Autoswitch [foreign → work]\n"),
-        "{text}"
+    assert_eq!(
+        text,
+        "\n    Autoswitch: checking identity; foreign is not allowed, switching to work… done.\n\n"
     );
     assert!(!text.contains("mgh internal"), "{text}");
 
@@ -193,9 +246,9 @@ fn entry_reports_identity_transition_without_internal_git_details() {
         ]
     }));
     let text = out(&env.success(&["internal", "enter"]));
-    assert!(
-        text.starts_with("\n  Autoswitch [not configured → work]\n"),
-        "{text}"
+    assert_eq!(
+        text,
+        "\n    Autoswitch: checking identity; no current identity, switching to work… done.\n\n"
     );
     assert!(!text.contains("mgh internal"), "{text}");
 }
@@ -222,6 +275,7 @@ fn multiple_autoswitch_always_prompts_and_cancel_preserves_state() {
     );
     assert_ok(&o);
     assert!(out(&o).contains("Operation cancelled"));
+    assert!(out(&o).contains("personal is allowed, choose an allowed identity."));
     assert_eq!(bytes(env.home.join(".gitconfig")), global);
     assert_eq!(bytes(env.repo.join(".git/config")), local);
     assert_eq!(env.accounts(), account);

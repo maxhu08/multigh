@@ -434,6 +434,22 @@ enum SwitchKind {
     Automatic,
 }
 
+fn selected_identity<'a>(
+    catalog: &'a Catalog,
+    account: Option<&'a accounts::SelectedAccount>,
+) -> &'a str {
+    match account {
+        Some(account) => match catalog
+            .all()
+            .find(|identity| identity.username().eq_ignore_ascii_case(account.login()))
+        {
+            Some(identity) => identity.name(),
+            None => account.login(),
+        },
+        None => "no current identity",
+    }
+}
+
 fn switch_inner(
     inv: &Invocation,
     name: &str,
@@ -456,32 +472,10 @@ fn switch_inner(
     if let Some(prepared) = prepared {
         prepared.apply()?;
     }
-    match kind {
-        SwitchKind::Explicit => ui.value_heading("Identity", target.name(), Meaning::Identity),
-        SwitchKind::Automatic => {
-            let (before, meaning) = match prior.as_ref() {
-                Some(account) => match catalog
-                    .all()
-                    .find(|identity| identity.username().eq_ignore_ascii_case(account.login()))
-                {
-                    Some(identity) => (identity.name(), Meaning::Identity),
-                    None => (account.login(), Meaning::Username),
-                },
-                None => ("not configured", Meaning::Path),
-            };
-            if before == target.name() && matches!(meaning, Meaning::Identity) {
-                ui.value_heading("Autoswitch", target.name(), Meaning::Identity);
-            } else {
-                ui.heading_parts(&[
-                    ("Autoswitch [", Meaning::Heading),
-                    (before, meaning),
-                    (" → ", Meaning::Plain),
-                    (target.name(), Meaning::Identity),
-                    ("]", Meaning::Heading),
-                ]);
-            }
-        }
+    if matches!(kind, SwitchKind::Automatic) {
+        return Ok(());
     }
+    ui.value_heading("Identity", target.name(), Meaning::Identity);
     ui.row(
         "GitHub username",
         &changed(prior.as_ref().map(|a| a.login()), target.username()),
@@ -691,8 +685,15 @@ pub(super) fn enter(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> {
     if !enabled && !auto && !verbose {
         return Ok(());
     }
+    if auto {
+        ui.progress("Autoswitch: checking identity", false);
+    }
     let catalog = inv.catalog(false)?;
     let mut allowed = repo.allowed(&catalog)?;
+    let mut progress_interrupted = allowed.is_empty();
+    if auto && allowed.is_empty() {
+        ui.progress("; no allowed identities configured.", true);
+    }
     let mut readiness = repo.readiness(catalog.path())?;
     let mut writes = repositories::new_writes();
     if enabled && !readiness.healthy() {
@@ -704,6 +705,7 @@ pub(super) fn enter(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> {
             Err(error) => Some(error),
         };
         if !readiness.healthy() {
+            progress_interrupted = true;
             ui.heading("Repository integration");
             if let Some(error) = failure {
                 ui.warning(&format!("Hook repair failed: {error:#}"));
@@ -725,18 +727,42 @@ pub(super) fn enter(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> {
         selected = true;
     }
     if auto && !allowed.is_empty() {
+        selected = true;
+        if progress_interrupted {
+            ui.progress("Autoswitch: checking identity", false);
+        }
         let attempt = (|| {
             let account = accounts::selected()?;
-            if allowed.len() == 1
-                && account
+            let current = allowed.iter().find(|i| {
+                account
                     .as_ref()
-                    .is_some_and(|a| a.login().eq_ignore_ascii_case(allowed[0].username()))
-            {
+                    .is_some_and(|a| a.login().eq_ignore_ascii_case(i.username()))
+            });
+            let name = selected_identity(&catalog, account.as_ref());
+            if allowed.len() == 1 && current.is_some() {
+                ui.progress(&format!("; {name} is allowed, no switch needed."), true);
                 return Ok(());
             }
             let target = if allowed.len() == 1 {
+                let status = if account.is_none() {
+                    name.to_string()
+                } else {
+                    format!("{name} is not allowed")
+                };
+                ui.progress(
+                    &format!("; {status}, switching to {}…", allowed[0].name()),
+                    false,
+                );
                 allowed[0].name().to_string()
             } else {
+                let status = if account.is_none() {
+                    name.to_string()
+                } else if current.is_some() {
+                    format!("{name} is allowed")
+                } else {
+                    format!("{name} is not allowed")
+                };
+                ui.progress(&format!("; {status}, choose an allowed identity."), true);
                 ensure!(
                     ui.interactive(),
                     "Multiple allowed identities require a terminal. Run: mgh switch <allowed-identity>"
@@ -748,26 +774,25 @@ pub(super) fn enter(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> {
                         username: i.username().into(),
                     })
                     .collect::<Vec<_>>();
-                let current = allowed
-                    .iter()
-                    .find(|i| {
-                        account
-                            .as_ref()
-                            .is_some_and(|a| a.login().eq_ignore_ascii_case(i.username()))
-                    })
-                    .map(|i| i.name());
-                ui.active(&choices, current)?
+                let current = current.map(|i| i.name());
+                let target = ui.active(&choices, current)?;
+                ui.progress(&format!("Autoswitch: switching to {target}…"), false);
+                target
             };
             ensure!(
                 allowed.iter().any(|i| i.name() == target),
                 "Selected identity is not allowed"
             );
             switch_inner(inv, &target, SwitchKind::Automatic, ui, &mut writes)?;
-            selected = true;
+            ui.progress(" done.", true);
             Ok(())
         })();
         if let Err(e) = attempt {
-            ui.warning(&format!("Autoswitch failed: {e:#}"));
+            if allowed.len() > 1 {
+                ui.message(&format!("Autoswitch failed: {e:#}."), Meaning::Path);
+            } else {
+                ui.progress(&format!("; autoswitch failed: {e:#}."), true);
+            }
         }
     }
     if verbose && !selected {

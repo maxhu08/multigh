@@ -81,7 +81,7 @@ mgh repo protections on        # Repair integration and re-enable checks.
 mgh settings autoswitch on     # Enable automatic selection across repositories.
 ```
 
-Autoswitch is OFF by default. It selects the sole allowed identity, or prompts when several are allowed. GitHub's active account is shared across terminals. Verbose entry reports turn on after the first completed setup; the welcome greeting defaults to OFF. Shell integration displays the greeting when enabled.
+Autoswitch is OFF by default. It selects the sole allowed identity, or prompts when several are allowed. On repository entry, one gray sentence immediately shows progress and reports whether the current identity is allowed or needs to switch. This feedback appears even when verbose reports are OFF. GitHub's active account is shared across terminals. Verbose entry reports turn on after the first completed setup; the welcome greeting defaults to OFF. Shell integration displays the greeting when enabled.
 
 Existing project hooks continue to run. Custom global hook paths require manual integration; setup reports them instead of replacing them. Push checks also reject outgoing commits attributed to your other disallowed configured identities. These are local safeguards: tools that bypass Git hooks can bypass the checks.
 

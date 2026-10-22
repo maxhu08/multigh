@@ -352,20 +352,20 @@ fn semantic_values_keep_their_colors_and_arrows_are_plain() {
     assert_ok(&switched);
     let text = out(&switched);
     assert!(
-        text.contains(&format!("{cyan}personal{reset} → {cyan}work{reset}")),
-        "{text}"
-    );
-    assert!(
-        text.contains(&format!("{purple}alice {reset}→{purple} alice-work{reset}")),
+        text.contains(&format!("{slate}Autoswitch: checking identity{reset}")),
         "{text}"
     );
     assert!(
         text.contains(&format!(
-            "{orange}Alice Example {reset}→{orange} Alice Work{reset}"
+            "{slate}; personal is not allowed, switching to work…{reset}"
         )),
         "{text}"
     );
-    plain_arrows(&text);
+    assert!(text.contains(&format!("{slate} done.{reset}")), "{text}");
+    let (_, autoswitch) = text.split_once("Autoswitch: checking identity").unwrap();
+    assert!(!autoswitch.contains(cyan), "{text}");
+    assert!(!autoswitch.contains(purple), "{text}");
+    assert!(!autoswitch.contains(orange), "{text}");
     assert!(!text.contains("mgh internal"), "{text}");
     assert_eq!(env.accounts()["selected"], "alice-work");
     assert_eq!(
@@ -405,7 +405,12 @@ fn semantic_values_keep_their_colors_and_arrows_are_plain() {
         let result = command.output().unwrap();
         assert_ok(&result);
         let text = out(&result);
-        assert!(text.contains("Autoswitch [personal → work]"), "{text}");
+        assert!(
+            text.contains(
+                "Autoswitch: checking identity; personal is not allowed, switching to work… done."
+            ),
+            "{text}"
+        );
         assert!(!text.contains('\x1b'), "{text}");
     }
 

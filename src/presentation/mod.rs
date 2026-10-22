@@ -10,6 +10,7 @@ pub struct Terminal {
     started: bool,
     last_error: bool,
     padded: [bool; 2],
+    progress: bool,
 }
 
 fn styling(stderr: bool) -> bool {
@@ -69,10 +70,12 @@ impl Terminal {
             started: false,
             last_error: false,
             padded: [false; 2],
+            progress: false,
         }
     }
 
     fn begin(&mut self, error: bool) {
+        self.end_progress();
         if !self.started {
             if !self.padded[usize::from(error)] {
                 if error {
@@ -88,6 +91,7 @@ impl Terminal {
     }
 
     fn section_break(&mut self) {
+        self.end_progress();
         if self.started && !self.padded[0] {
             println!();
             self.padded[0] = true;
@@ -104,6 +108,7 @@ impl Terminal {
     }
 
     pub fn finish(&mut self) {
+        self.end_progress();
         if self.started {
             if !self.padded[usize::from(self.last_error)] {
                 if self.last_error {
@@ -120,6 +125,13 @@ impl Terminal {
     fn form(&mut self, meaning: Meaning) {
         self.begin(true);
         cliclack::set_theme(FormTheme(meaning));
+    }
+
+    fn end_progress(&mut self) {
+        if self.progress {
+            println!();
+            self.progress = false;
+        }
     }
 }
 
@@ -161,6 +173,19 @@ impl Reports for Terminal {
     fn message_parts(&mut self, parts: &[(&str, Meaning)]) {
         self.begin(false);
         println!("{}", indent(&styled_parts(parts, false), BODY));
+    }
+
+    fn progress(&mut self, text: &str, finished: bool) {
+        if !self.progress {
+            self.begin(false);
+            print!("{}", " ".repeat(BODY));
+            self.progress = true;
+        }
+        print!("{}", styled(text, Meaning::Path, false));
+        if finished {
+            self.end_progress();
+        }
+        let _ = io::stdout().flush();
     }
 
     fn before_native(&mut self) {

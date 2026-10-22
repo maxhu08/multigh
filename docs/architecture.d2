@@ -1,0 +1,118 @@
+# multigh architecture: main call paths and implementation privacy.
+# Render with D2 0.9.0:
+#   d2 docs/architecture.d2 docs/architecture.svg
+#   d2 docs/architecture.d2 docs/architecture.png
+
+vars: {
+  d2-config: {
+    layout-engine: elk
+    theme-id: 0
+    pad: 32
+  }
+}
+direction: down
+classes: {
+  boundary: {
+    style: {
+      fill: "#F8FAFC"
+      stroke: "#94A3B8"
+      border-radius: 12
+      font-size: 20
+    }
+  }
+  interface: {
+    style: {
+      fill: "#EFF6FF"
+      stroke: "#2563EB"
+      border-radius: 8
+      font-size: 17
+    }
+  }
+  deep: {
+    style: {
+      fill: "#ECFDF5"
+      stroke: "#059669"
+      border-radius: 8
+      font-size: 17
+    }
+  }
+  private: {
+    style: {
+      fill: "#F5F3FF"
+      stroke: "#8B5CF6"
+      border-radius: 8
+      font-size: 16
+    }
+  }
+  external: {
+    style: {
+      fill: "#FFF7ED"
+      stroke: "#EA580C"
+      border-radius: 8
+      font-size: 16
+    }
+  }
+}
+
+title: "multigh architecture\nNarrow operations · semantic interaction · private implementation" {
+  shape: text
+  near: top-center
+  style.font-size: 26
+}
+
+adapters: "CLI and terminal adapters" {
+  class: boundary
+  direction: right
+  cli: "main.rs + cli.rs\nParse commands · construct Terminal\nErrors and exit status" {class: interface}
+  commands: "commands::run\nSingle dispatcher\nCLI arguments → application inputs" {class: interface}
+  terminal: "presentation/\nTerminal + layout.rs\nForms · colors · indentation · streams" {class: interface}
+  cli -> commands: "dispatch"
+  cli -> terminal: "create"
+}
+
+application: "application/ — public operations above private implementation" {
+  class: boundary
+  facade: "Invocation + RepositoryActions\nIdentities · setup · switch · repository actions\nPreferences · entry · inspection · hooks · shell" {class: interface}
+  interaction: "Interaction: Prompts + Reports\nTyped choices and cancellation\nSemantic reports and native streams" {class: interface}
+  workflows: "workflows.rs (private)\nValidation and effect ordering\nPartial completion and recovery\nSetup · identities · switch · entry · reports" {class: private}
+
+  domain: "Private deep modules" {
+    class: boundary
+    identities: "identities.rs\nCatalog · EditSession · PreparedIdentityChange\nJSONC validation and atomic editing" {class: deep}
+    accounts: "accounts.rs\nSelectedAccount vs LiveAccount\nLogin · switch · account queries\nGitHub CLI protocol and failures" {class: deep}
+    preferences: "preferences.rs\nGlobal preference reads / writes\nFirst-setup state and private markers" {class: deep}
+    repositories: "repositories/\nRepository · PermissionSelection\nPrivate: git · identity_rules · hooks · enforcement\nScopes · policy · history · hook forwarding" {class: deep}
+  }
+  platform: "platform.rs (private)\nShared process and filesystem helpers\nPrivate files · command output · shell quoting" {class: private}
+
+  shell: "shell.rs (private)\nEmbedded shell/ templates\nNative Git forwarding + init entry" {class: private}
+
+  facade -> workflows: "delegates workflows"
+  facade -> domain.repositories: "repository actions / hooks"
+  facade -> domain.preferences: "updates settings"
+  facade -> shell: "shell operations"
+  shell -> platform: "shell quoting"
+  workflows -> interaction: "requests input / reports progress"
+  workflows -> domain.identities: "validated catalog and prepared changes"
+  workflows -> domain.accounts: "explicit account operation"
+  workflows -> domain.preferences: "global preferences only"
+  workflows -> domain.repositories: "semantic repository / integration operation"
+  domain.identities -> platform: "private file persistence"
+  domain.preferences -> platform: "private marker persistence"
+  domain.accounts -> platform: "gh I/O"
+  domain.repositories -> platform: "Git / hook I/O and generated files"
+}
+
+outside: "Files and external programs" {
+  class: boundary
+  files: "Identity JSONC + multigh state\nGenerated identity files and launchers\nPreference markers" {class: external}
+  tools: "Git + GitHub CLI + project hooks\nGlobal / local Git configuration\nNative arguments, streams and exit status" {class: external}
+}
+
+adapters.commands -> application.facade: "calls application operations"
+adapters.terminal -> application.interaction: "implements traits"
+application.platform -> outside.files: "reads / writes"
+application.platform -> outside.tools: "shared captured-process I/O"
+application.shell -> outside.tools: "inherits native Git I/O"
+application.domain.accounts -> outside.tools: "interactive GitHub login"
+application.domain.repositories -> outside.tools: "runs project hooks / replays stdin"

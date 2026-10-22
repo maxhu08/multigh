@@ -1,0 +1,22 @@
+# multigh interactive shell integration
+if [[ -o interactive && -z ${_MGH_ZSH_LOADED:-} ]]; then
+    _MGH_ZSH_LOADED=1
+    if (( ! $+functions[compdef] )); then
+        autoload -Uz compinit
+        compinit -D
+    fi
+    eval "$(mgh shell completions zsh)"
+    autoload -Uz add-zsh-hook
+    _mgh_enter() {
+        if [[ ${_MGH_LAST_PWD:-} != "$PWD" ]]; then
+            _MGH_LAST_PWD=$PWD
+            mgh internal enter
+        fi
+    }
+    add-zsh-hook chpwd _mgh_enter
+    if (( ! $+functions[git] && ! $+aliases[git] )); then
+        function git { mgh internal git -- "$@"; }
+    fi
+    mgh internal welcome
+    _mgh_enter
+fi

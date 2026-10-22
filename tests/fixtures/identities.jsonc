@@ -1,0 +1,19 @@
+{
+  "personal": {
+    "username": "alice",
+    "commit": {
+      "name": "Alice Example",
+      "email": "Alice@example.com",
+      "additional_emails": [
+        "123+alice@users.noreply.github.com"
+      ]
+    }
+  },
+  "work": {
+    "username": "alice-work",
+    "commit": {
+      "name": "Alice Work",
+      "email": "work@example.com"
+    }
+  }
+}

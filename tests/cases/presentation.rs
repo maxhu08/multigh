@@ -357,7 +357,7 @@ fn semantic_values_keep_their_colors_and_arrows_are_plain() {
     );
     assert!(
         text.contains(&format!(
-            "{slate}; personal is not allowed, switching to work…{reset}"
+            "{slate}; personal is not allowed, switching to work...{reset}"
         )),
         "{text}"
     );
@@ -407,7 +407,7 @@ fn semantic_values_keep_their_colors_and_arrows_are_plain() {
         let text = out(&result);
         assert!(
             text.contains(
-                "Autoswitch: checking identity; personal is not allowed, switching to work… done."
+                "Autoswitch: checking identity; personal is not allowed, switching to work... done."
             ),
             "{text}"
         );

@@ -84,7 +84,7 @@ if args[:2] == ['auth', 'login']:
 if args[:2] == ['auth', 'switch']:
     if os.getenv('MGH_SELECTED_EXPECT_OUTPUT'):
         with open(os.environ['MGH_SELECTED_EXPECT_OUTPUT']) as f:
-            if 'personal is not allowed, switching to work…' not in f.read():
+            if 'personal is not allowed, switching to work...' not in f.read():
                 print('switch feedback missing before GitHub switch', file=sys.stderr)
                 sys.exit(1)
     if os.getenv('MGH_SWITCH_FAIL'):

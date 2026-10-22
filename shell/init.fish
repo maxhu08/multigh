@@ -6,7 +6,13 @@ if status is-interactive
         function _mgh_enter --on-variable PWD
             if not set -q _MGH_LAST_PWD; or test "$_MGH_LAST_PWD" != "$PWD"
                 set -g _MGH_LAST_PWD "$PWD"
-                mgh internal enter </dev/tty
+                set -l _mgh_repo (command git rev-parse --absolute-git-dir 2>/dev/null)
+                if not set -q _MGH_LAST_REPO; or test "$_MGH_LAST_REPO" != "$_mgh_repo"
+                    set -g _MGH_LAST_REPO "$_mgh_repo"
+                    if test -n "$_mgh_repo"
+                        mgh internal enter </dev/tty
+                    end
+                end
             end
         end
         if not functions -q git

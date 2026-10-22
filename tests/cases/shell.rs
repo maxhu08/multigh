@@ -267,6 +267,101 @@ fn actual_shell_directory_changes_and_prompt_array_preservation() {
     }
 }
 
+/// Autoswitch must run only when crossing repository boundaries, including nested repositories
+/// and returning after leaving Git, while staying silent within the same repository.
+#[test]
+fn autoswitch_only_reports_on_repository_changes() {
+    let env = Sandbox::new();
+    env.init_repo();
+    env.setup_defaults();
+    env.success(&["repo", "allowed", "add", "personal"]);
+    env.success(&["settings", "autoswitch", "on"]);
+    let sub = env.repo.join("sub/deeper");
+    let nested = env.repo.join("nested");
+    let nested_sub = nested.join("sub");
+    fs::create_dir_all(&sub).unwrap();
+    fs::create_dir_all(&nested_sub).unwrap();
+    env.git_without_hooks(&["-C", nested.to_str().unwrap(), "init", "-b", "main"]);
+    let o = env
+        .mgh(&["repo", "allowed", "add", "work"])
+        .current_dir(&nested)
+        .output()
+        .unwrap();
+    assert_ok(&o);
+    env.driver();
+    for shell in ["bash", "zsh", "fish"] {
+        env.success(&["switch", "personal"]);
+        let script = env.root.join(format!("repo-changes-{shell}.init"));
+        fs::write(&script, out(&env.success(&["shell", "init", shell]))).unwrap();
+        let args = match shell {
+            "bash" => vec!["--noprofile", "--norc", "-i"],
+            "zsh" => vec!["-f", "-i"],
+            _ => vec!["--no-config", "-i"],
+        };
+        let steps = json!([
+            [
+                "",
+                format!(
+                    "source {}; echo LOADED\n",
+                    shquote(script.to_str().unwrap())
+                )
+            ],
+            [
+                "LOADED",
+                format!("cd {}\n", shquote(env.repo.to_str().unwrap()))
+            ],
+            [
+                "personal is allowed, no switch needed.",
+                format!("cd {}; echo INSIDE\n", shquote(sub.to_str().unwrap()))
+            ],
+            ["INSIDE", "cd ..; echo PARENT\n"],
+            [
+                "PARENT",
+                format!("cd {}; echo ROOT\n", shquote(env.repo.to_str().unwrap()))
+            ],
+            [
+                "ROOT",
+                format!("cd {}\n", shquote(nested.to_str().unwrap()))
+            ],
+            [
+                "switching to work... done.",
+                format!(
+                    "cd {}; echo NESTED_SUB\n",
+                    shquote(nested_sub.to_str().unwrap())
+                )
+            ],
+            [
+                "NESTED_SUB",
+                format!("cd {}\n", shquote(env.repo.to_str().unwrap()))
+            ],
+            [
+                "switching to personal... done.",
+                format!("cd {}; echo OUTSIDE\n", shquote(env.home.to_str().unwrap()))
+            ],
+            [
+                "OUTSIDE",
+                format!("cd {}\n", shquote(env.repo.to_str().unwrap()))
+            ],
+            ["personal is allowed, no switch needed.", "exit 0\n"]
+        ]);
+        let o = env
+            .command("python3")
+            .current_dir(&env.home)
+            .arg(env.root.join("driver.py"))
+            .arg(shell)
+            .args(args)
+            .env("MGH_PTY_STEPS", steps.to_string())
+            .output()
+            .unwrap();
+        assert_ok(&o);
+        let text = out(&o);
+        assert_eq!(text.matches("Autoswitch:").count(), 4, "{shell}: {text}");
+        assert!(!text.contains('…'), "{shell}: {text}");
+        assert!(!text.contains("Current repository"), "{shell}: {text}");
+        assert_eq!(env.accounts()["selected"], "alice");
+    }
+}
+
 /// Git init options and targets must identify the correct repository without leaking a
 /// persistent alias.
 #[test]

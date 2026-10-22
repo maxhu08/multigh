@@ -10,7 +10,14 @@ if [[ -o interactive && -z ${_MGH_ZSH_LOADED:-} ]]; then
     _mgh_enter() {
         if [[ ${_MGH_LAST_PWD:-} != "$PWD" ]]; then
             _MGH_LAST_PWD=$PWD
-            mgh internal enter
+            local _mgh_repo
+            _mgh_repo=$(command git rev-parse --absolute-git-dir 2>/dev/null)
+            if [[ ${_MGH_LAST_REPO:-} != "$_mgh_repo" ]]; then
+                _MGH_LAST_REPO=$_mgh_repo
+                if [[ -n $_mgh_repo ]]; then
+                    mgh internal enter
+                fi
+            fi
         fi
     }
     add-zsh-hook chpwd _mgh_enter

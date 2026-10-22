@@ -750,7 +750,7 @@ pub(super) fn enter(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> {
                     format!("{name} is not allowed")
                 };
                 ui.progress(
-                    &format!("; {status}, switching to {}…", allowed[0].name()),
+                    &format!("; {status}, switching to {}...", allowed[0].name()),
                     false,
                 );
                 allowed[0].name().to_string()
@@ -776,7 +776,7 @@ pub(super) fn enter(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> {
                     .collect::<Vec<_>>();
                 let current = current.map(|i| i.name());
                 let target = ui.active(&choices, current)?;
-                ui.progress(&format!("Autoswitch: switching to {target}…"), false);
+                ui.progress(&format!("Autoswitch: switching to {target}..."), false);
                 target
             };
             ensure!(

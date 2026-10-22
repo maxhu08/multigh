@@ -1,7 +1,1 @@
-/target/
-
-accounts.conf
-identities.json
-identities.jsonc
-!/examples/identities.jsonc
-!/tests/fixtures/identities.jsonc
+/target

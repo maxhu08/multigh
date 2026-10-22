@@ -1,8 +1,0 @@
-Details:
-    Require a Git repo and verify live gh authentication and actual author and
-    committer details against its allowed identities. This explicit check runs
-    even with repo protections off. Success is silent; errors identify what to
-    fix. Push hooks also scan outgoing history; repo check does not.
-
-Examples:
-    mgh repo check

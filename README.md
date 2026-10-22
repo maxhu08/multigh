@@ -1,29 +1,28 @@
 # multigh
 
-`mgh` manages multiple GitHub accounts across repositories, keeping authentication
-and commit details aligned. Name your identities anything you like, such as
-`personal`, `school` or `work`. Identity names are case insensitive.
+`mgh` manages multiple GitHub accounts and keeps authentication and commit details aligned across repositories. Name identities `personal`, `school`, `work` or anything that fits your workflow. Identity names are case-insensitive.
 
-Requires Git 2.45+, GitHub CLI and Rust for installation. This project is not yet
-published on crates.io; install from this repository.
+This is a small personal utility, put together quickly. It has automated regression tests, but has not been rigorously tested across real-world environments or varied setups.
+
+Requires Git 2.45+ and GitHub CLI. Installation requires a Rust toolchain; interactive shell integration supports Fish, Bash and Zsh on Unix.
 
 ## Getting started
 
-From the cloned repository:
+From this checkout:
 
 ```sh
-# Install mgh.
 cargo install --path . --locked --root "$HOME/.local"
+```
 
-# Create your first identity and enable repository protections.
+Add `~/.local/bin` to PATH if needed, then run:
+
+```sh
 mgh setup
 ```
 
-Add `~/.local/bin` to PATH if needed. Follow the setup prompts and sign in to
-GitHub when asked. To add more identities, run `mgh identity new`, which also
-runs setup automatically.
+Setup prompts for your first identity and opens GitHub sign-in when needed. Add more identities with `mgh identity new`.
 
-Add the line for your shell to its configuration, then open a new terminal:
+Add the matching line to your shell configuration, then restart your shell:
 
 ```fish
 # Fish: ~/.config/fish/config.fish
@@ -38,105 +37,52 @@ eval "$(mgh shell init bash)"
 eval "$(mgh shell init zsh)"
 ```
 
-These lines also enable Tab completion for mgh commands and options.
-
-Inside a repository:
+This enables repository-entry checks and Tab completion. Inside each repository:
 
 ```sh
-# Choose which identities can commit and push here.
-mgh repo allowed update
-
-# Switch to an allowed identity.
-mgh switch personal
-
-# Check your identity and repository settings.
-mgh status
+mgh repo allowed update  # Choose identities allowed to commit and push here.
+mgh switch personal     # Select an identity you've allowed.
+mgh status              # Inspect identities and the current repository.
 ```
 
-Use **Space** to select identities and **Enter** to save. Shell integration also
-prompts when entering an unconfigured repo or running `git init`.
+Use Space to select identities and Enter to save; Esc or Ctrl+C cancels. Entering an unconfigured repository or running interactive `git init` also offers the checklist. After cloning, run `mgh repo allowed update` if no picker appears.
 
-## Commands and scope
+## Commands
 
 | Command | Purpose |
 | --- | --- |
-| `mgh setup` | Guided setup or refresh of identity rules and hooks. |
-| `mgh status [--full]` | Global identities and current repo status; optional full authentication report. |
-| `mgh switch <identity>` | Switch GitHub authentication and commit details. |
-| `mgh doctor` | Read-only installation, config, authentication and hook diagnostics. |
-| `mgh identity [list]` | List global identities. |
-| `mgh identity new [identity]` | Add a global identity and authenticate. |
-| `mgh identity edit <identity>` | Edit global username or commit details. |
-| `mgh identity remove <identity>` | Remove a global identity, keeping its GitHub login. |
-| `mgh repo [status]` | Show only this repo's status. |
-| `mgh repo check` | Validate live authentication and actual commit details. |
-| `mgh repo protections [on\|off]` | Toggle protection here; default ON. |
-| `mgh repo allowed [list]` | List identities permitted here. |
-| `mgh repo allowed add <identity>` | Permit one configured identity here. |
-| `mgh repo allowed remove <identity>` | Revoke one permission here. |
-| `mgh repo allowed update` | Edit permissions with a checklist; no arguments. |
-| `mgh settings` | Show global preferences. |
-| `mgh settings autoswitch [on\|off]` | Toggle identity selection on entry to every repo; default OFF. |
-| `mgh settings verbose [on\|off]` | Toggle allowed-identity and hook reports globally. |
-| `mgh settings welcome [on\|off]` | Toggle the fast terminal greeting globally. |
-| `mgh shell init <fish\|bash\|zsh>` | Print shell integration. |
-| `mgh shell completions <shell>` | Print shell completions. |
-| `mgh help [command]` | Show help. |
+| `mgh setup` | Create the first identity or refresh integration. |
+| `mgh status [--full]` | Show identities and repository status; optionally include GitHub's authentication report. |
+| `mgh switch <identity>` | Switch GitHub accounts and global commit defaults; update local details only if allowed here. |
+| `mgh identity [list\|new\|edit\|remove]` | Manage global identity definitions. |
+| `mgh repo [status\|check\|allowed\|protections]` | Inspect or change this repository's permissions and protections. |
+| `mgh settings [autoswitch\|verbose\|welcome] [on\|off]` | Show or change global preferences. |
+| `mgh doctor` | Diagnose tools, configuration, authentication and hooks without changing them. |
+| `mgh shell <init\|completions> <shell>` | Print shell integration or completion definitions. |
 
-`identity` and `settings` apply globally; `repo` applies only to the current Git
-repository. Use `-h` with any command for details.
+Use `mgh <command> --help` for flags and subcommands. Editing an identity does not select it; run `mgh switch <identity>` afterward. Removing an identity preserves its GitHub login and repository permissions; revoke stale permissions with `mgh repo allowed remove <identity>`.
 
-## Identity configuration
+## Configuration
 
-Identities are saved in `~/.config/multigh/identities.jsonc`. **Both JSON and JSONC
-are accepted.** Use `mgh identity new` and `mgh identity edit` to manage them, or
-edit the file yourself. `--config <path>` selects another file.
+Identities live in `$XDG_CONFIG_HOME/multigh/identities.jsonc`, defaulting to `~/.config/multigh/identities.jsonc`. Both JSON and JSONC are accepted, including comments and trailing commas. See [the example configuration](examples/identities.jsonc). Use `mgh --config <path> ...` to select another file.
 
-See the [example with personal, school and work identities](examples/identities.jsonc)
-and the [configuration reference](docs/usage.md#identity-configuration) for fields
-and additional commit emails. GitHub tokens stay in GitHub CLI storage.
+Each identity requires `username` and `commit.email`. `commit.name` defaults to the username; optional `commit.additional_emails` accepts older or noreply commit addresses without using them for new commits. Usernames and accepted email addresses must be unique across identities. Identity names start with an ASCII letter and may contain ASCII letters, digits, underscores and hyphens.
 
-## Repository permissions and switching
+Generated identity files, hooks and preferences live in `$XDG_STATE_HOME/multigh`, defaulting to `~/.local/state/multigh`. GitHub tokens remain in GitHub CLI storage.
 
-Protections are **on by default** after setup. Commits and pushes require an
-allowed identity with matching commit details. A repo with no allowed identities
-stays blocked until you choose them.
+## Permissions and switching
+
+Protections default to ON after integration is installed. A repository with no allowed identities blocks protected commits and pushes. Permissions are local to the repository and shared by linked worktrees; creating or switching an identity never grants permission.
 
 ```sh
-# Allow another identity in this repo.
 mgh repo allowed add work
-
-# Disable protections only for this repo.
-mgh repo protections off
-
-# Re-enable them.
-mgh repo protections on
+mgh repo protections off       # Disable protections only in this repository.
+mgh repo protections on        # Repair integration and re-enable checks.
+mgh settings autoswitch on     # Enable automatic selection across repositories.
 ```
 
-To switch automatically when entering a repository:
+Autoswitch is OFF by default. It selects the sole allowed identity, or prompts when several are allowed. GitHub's active account is shared across terminals. Verbose entry reports turn on after the first completed setup; the welcome greeting defaults to OFF. Shell integration displays the greeting when enabled.
 
-```sh
-mgh settings autoswitch on
-```
+Existing project hooks continue to run. Custom global hook paths require manual integration; setup reports them instead of replacing them. Push checks also reject outgoing commits attributed to your other disallowed configured identities. These are local safeguards: tools that bypass Git hooks can bypass the checks.
 
-Autoswitch chooses the only allowed identity, or asks you to select one when
-several are allowed. It is off by default. GitHub's active account is shared
-across terminals, so switching in one terminal affects the others.
-
-## How the guard works
-
-mgh installs Git hooks that check authentication and commit details before
-committing or pushing. Repo permissions stay in local Git config; existing
-project hooks, including Husky checks, are preserved. Editors that run Git hooks
-use the same protections.
-
-These are local safeguards; tools that bypass Git hooks can bypass the checks.
-Run `mgh doctor` if protections are not working, or read the
-[hook integration guide](docs/usage.md#hook-integration).
-
-## More information
-
-- [Usage and configuration](docs/usage.md)
-- [Development](docs/development.md)
-- [Tests and prerequisites](docs/testing.md)
-- [Commit conventions](docs/committing.md)
+For problems, run `mgh doctor`, then `mgh setup` to refresh integration. For build and test instructions, see [Development](docs/development.md).

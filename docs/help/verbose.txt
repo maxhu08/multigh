@@ -1,9 +1,0 @@
-Details:
-    Control allowed-identity and existing-hook information on repo entry and
-    interactive terminal startup across all repos. Requires shell integration.
-    With no state, report the global preference. off suppresses informational
-    reports; protection problems and autoswitch prompts remain visible.
-
-Examples:
-    mgh settings verbose on
-    mgh settings verbose off

@@ -15,6 +15,11 @@ if args == ['--version']:
     sys.exit(0)
 
 if args[:3] == ['config', 'get', 'user']:
+    if os.getenv('MGH_SELECTED_EXPECT_OUTPUT'):
+        with open(os.environ['MGH_SELECTED_EXPECT_OUTPUT']) as f:
+            if 'Autoswitch: checking identity' not in f.read():
+                print('autoswitch feedback missing before GitHub query', file=sys.stderr)
+                sys.exit(2)
     if os.getenv('MGH_SELECTED_FAIL'):
         print('selected query exploded', file=sys.stderr)
         sys.exit(2)
@@ -77,6 +82,11 @@ if args[:2] == ['auth', 'login']:
         os.unlink(os.environ['MGH_DELETE_CONFIG'])
     sys.exit(0)
 if args[:2] == ['auth', 'switch']:
+    if os.getenv('MGH_SELECTED_EXPECT_OUTPUT'):
+        with open(os.environ['MGH_SELECTED_EXPECT_OUTPUT']) as f:
+            if 'personal is not allowed, switching to work…' not in f.read():
+                print('switch feedback missing before GitHub switch', file=sys.stderr)
+                sys.exit(1)
     if os.getenv('MGH_SWITCH_FAIL'):
         print('switch exploded', file=sys.stderr)
         sys.exit(1)

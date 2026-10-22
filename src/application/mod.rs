@@ -89,6 +89,7 @@ pub trait Reports {
     }
 
     fn message_parts(&mut self, parts: &[(&str, Meaning)]);
+    fn progress(&mut self, text: &str, finished: bool);
     fn before_native(&mut self);
     fn native_report(&mut self, stdout: &[u8], stderr: &[u8]) -> Result<()>;
 }

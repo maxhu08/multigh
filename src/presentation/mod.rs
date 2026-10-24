@@ -26,6 +26,7 @@ fn styling(stderr: bool) -> bool {
 fn color(meaning: Meaning) -> (u8, u8, u8, bool) {
     match meaning {
         Meaning::Heading => (244, 114, 182, true),
+        Meaning::HeadingArrow => (244, 114, 182, false),
         Meaning::Identity => (103, 232, 249, true),
         Meaning::Username => (192, 132, 252, false),
         Meaning::Commit => (251, 146, 60, false),
@@ -43,6 +44,9 @@ fn styled(text: &str, meaning: Meaning, stderr: bool) -> String {
     }
     let (r, g, b, bold) = color(meaning);
     let prefix = format!("\x1b[{};38;2;{r};{g};{b}m", if bold { "1" } else { "22" });
+    if matches!(meaning, Meaning::HeadingArrow) {
+        return format!("{prefix}{text}\x1b[0m");
+    }
     text.split('→')
         .map(|part| {
             if part.is_empty() {

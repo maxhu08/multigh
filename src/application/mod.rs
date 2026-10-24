@@ -31,6 +31,7 @@ impl std::error::Error for Cancelled {}
 #[derive(Clone, Copy)]
 pub enum Meaning {
     Heading,
+    HeadingArrow,
     Identity,
     Username,
     Commit,

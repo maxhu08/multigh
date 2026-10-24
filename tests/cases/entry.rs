@@ -304,8 +304,12 @@ fn welcome_mismatch_guidance_preserves_all_observed_state() {
     let account = env.accounts();
     let o = env.success(&["internal", "welcome"]);
     let text = out(&o);
-    assert!(text.contains("This repository needs: mgh switch work"));
-    assert!(text.contains("Commit details need: mgh switch personal"));
+    assert!(
+        text.contains("Protections are on; [personal] cannot commit or push in this repository.")
+    );
+    assert!(text.contains("Allowed identities: work"));
+    assert!(text.contains("If unintended, run: mgh switch <identity>"));
+    assert!(!text.contains("Commit details need:"));
     assert_eq!(bytes(env.repo.join(".git/config")), local);
     assert_eq!(bytes(env.home.join(".gitconfig")), global);
     assert_eq!(env.accounts(), account);

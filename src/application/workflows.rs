@@ -5,15 +5,28 @@ use super::{
 };
 use anyhow::{Context, bail, ensure};
 
+enum WriteReport {
+    Full,
+    Identity,
+}
+
 fn report_global_writes(
     inv: &Invocation,
     writes: &Writes,
     ui: &mut dyn Interaction,
     successful_noop: bool,
+    identity_reported: bool,
 ) {
-    if !writes.completed.is_empty() {
+    let mut changes = writes
+        .completed
+        .iter()
+        .filter(|change| {
+            !identity_reported || !matches!(change.key.as_str(), "user.name" | "user.email")
+        })
+        .peekable();
+    if changes.peek().is_some() {
         ui.heading(&format!("Global Git config updated by {}", inv.origin));
-        for change in &writes.completed {
+        for change in changes {
             let value = changed(
                 change.before.as_deref(),
                 change.after.as_deref().unwrap_or("removed"),
@@ -25,7 +38,7 @@ fn report_global_writes(
             };
             ui.row(&change.key, &value, meaning, false);
         }
-    } else if successful_noop {
+    } else if successful_noop && !identity_reported {
         ui.separate();
         ui.message("Global Git config unchanged", Meaning::Path);
     }
@@ -36,9 +49,24 @@ pub(super) fn with_writes<T>(
     ui: &mut dyn Interaction,
     operation: impl FnOnce(&mut Writes, &mut dyn Interaction) -> Result<T>,
 ) -> Result<T> {
+    with_write_report(inv, ui, WriteReport::Full, operation)
+}
+
+fn with_write_report<T>(
+    inv: &Invocation,
+    ui: &mut dyn Interaction,
+    report: WriteReport,
+    operation: impl FnOnce(&mut Writes, &mut dyn Interaction) -> Result<T>,
+) -> Result<T> {
     let mut writes = repositories::new_writes();
     let result = operation(&mut writes, ui);
-    report_global_writes(inv, &writes, ui, result.is_ok());
+    report_global_writes(
+        inv,
+        &writes,
+        ui,
+        result.is_ok(),
+        result.is_ok() && matches!(report, WriteReport::Identity),
+    );
     result
 }
 
@@ -125,7 +153,12 @@ pub(super) fn setup(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> {
     } else {
         (initial, None)
     };
-    let result = with_writes(inv, ui, |writes, ui| {
+    let report = if created.is_some() {
+        WriteReport::Identity
+    } else {
+        WriteReport::Full
+    };
+    let result = with_write_report(inv, ui, report, |writes, ui| {
         install(inv, &catalog, ui, writes)?;
         if let Some(name) = &created {
             switch_inner(inv, name, SwitchKind::Explicit, ui, writes)?;
@@ -232,7 +265,7 @@ pub(super) fn create(
     ui: &mut dyn Interaction,
 ) -> Result<()> {
     let (catalog, name) = collect_new(inv, name, fields, ui)?;
-    with_writes(inv, ui, |writes, ui| {
+    with_write_report(inv, ui, WriteReport::Identity, |writes, ui| {
         install(inv, &catalog, ui, writes)?;
         switch_inner(inv, &name, SwitchKind::Explicit, ui, writes)
     })
@@ -417,14 +450,13 @@ fn report_unresolved_permission(name: &str, ui: &mut dyn Interaction) {
 
 fn changed(before: Option<&str>, after: &str) -> String {
     match before {
-        Some(b) if b == after => after.to_string(),
         Some(b) => format!("{b} → {after}"),
         None => format!("not configured → {after}"),
     }
 }
 
 pub(super) fn switch(inv: &Invocation, name: &str, ui: &mut dyn Interaction) -> Result<()> {
-    with_writes(inv, ui, |writes, ui| {
+    with_write_report(inv, ui, WriteReport::Identity, |writes, ui| {
         switch_inner(inv, name, SwitchKind::Explicit, ui, writes)
     })
 }
@@ -450,6 +482,26 @@ fn selected_identity<'a>(
     }
 }
 
+fn disallowed_identity_warning(identity: &str, allowed: &[&Identity]) -> String {
+    let (identities, command) = if allowed.is_empty() {
+        ("none".to_string(), "mgh repo allowed update")
+    } else {
+        (
+            allowed
+                .iter()
+                .map(|identity| identity.name())
+                .collect::<Vec<_>>()
+                .join(", "),
+            "mgh switch <identity>",
+        )
+    };
+    format!(
+        "Protections are on; [{identity}] cannot commit or push in this repository.\n\
+         Allowed identities: {identities}\n\
+         If unintended, run: {command}"
+    )
+}
+
 fn switch_inner(
     inv: &Invocation,
     name: &str,
@@ -464,6 +516,22 @@ fn switch_inner(
         .as_ref()
         .map(|r| r.prepare_selection(&catalog, target))
         .transpose()?;
+    let switch_warning = if matches!(kind, SwitchKind::Explicit)
+        && let Some(repo) = &repo
+        && repo.protections()?
+    {
+        let allowed = repo.allowed(&catalog)?;
+        if allowed
+            .iter()
+            .any(|identity| identity.name() == target.name())
+        {
+            None
+        } else {
+            Some(disallowed_identity_warning(target.name(), &allowed))
+        }
+    } else {
+        None
+    };
     let prior = accounts::selected().ok().flatten();
     let (prior_name, prior_email) = repositories::global_defaults()?;
     repositories::refresh(&catalog, &inv.origin, writes)?;
@@ -475,7 +543,14 @@ fn switch_inner(
     if matches!(kind, SwitchKind::Automatic) {
         return Ok(());
     }
-    ui.value_heading("Identity", target.name(), Meaning::Identity);
+    let prior_identity = selected_identity(&catalog, prior.as_ref());
+    ui.heading_parts(&[
+        ("Identity selected [", Meaning::Heading),
+        (prior_identity, Meaning::Identity),
+        (" → ", Meaning::HeadingArrow),
+        (target.name(), Meaning::Identity),
+        ("]", Meaning::Heading),
+    ]);
     ui.row(
         "GitHub username",
         &changed(prior.as_ref().map(|a| a.login()), target.username()),
@@ -494,6 +569,10 @@ fn switch_inner(
         Meaning::Commit,
         false,
     );
+    if let Some(warning) = switch_warning {
+        ui.separate();
+        ui.warning(&warning);
+    }
     Ok(())
 }
 
@@ -904,23 +983,19 @@ pub(super) fn welcome(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> 
             }
         }
 
-        if !allowed.is_empty()
+        if repo.protections()?
             && !allowed.iter().any(|i| {
                 account
                     .as_ref()
                     .is_some_and(|a| a.login().eq_ignore_ascii_case(i.username()))
             })
         {
-            let mut parts = vec![("This repository needs: mgh switch ", Meaning::Warning)];
-            for identity in &allowed {
-                if parts.len() > 1 {
-                    parts.push((" or ", Meaning::Warning));
-                }
-                parts.push((identity.name(), Meaning::Identity));
-            }
-            ui.message_parts(&parts);
-        }
-        if let Some(identity) = identity {
+            ui.separate();
+            ui.warning(&disallowed_identity_warning(
+                selected_identity(catalog, account.as_ref()),
+                &allowed,
+            ));
+        } else if let Some(identity) = identity {
             let (name, email) = repo.effective_details()?;
             if name.as_deref() != Some(identity.commit_name())
                 || !email.is_some_and(|e| identity.accepts(&e))

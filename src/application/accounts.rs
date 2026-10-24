@@ -7,10 +7,22 @@ use std::{
 };
 
 // Guard code receives this query-only view, never authentication controls.
-pub(super) struct AccountQueries;
-impl AccountQueries {
+#[derive(Default)]
+pub(super) struct AccountQueries<'a> {
+    known: Option<&'a [LiveAccount]>,
+}
+impl<'a> AccountQueries<'a> {
+    pub fn from_accounts(accounts: &'a [LiveAccount]) -> Self {
+        Self {
+            known: Some(accounts),
+        }
+    }
+
     pub fn active(&self) -> Result<LiveAccount> {
-        active()
+        match self.known {
+            Some(accounts) => active_from(accounts),
+            None => active(),
+        }
     }
 }
 
@@ -78,8 +90,12 @@ pub(super) fn all() -> Result<Vec<LiveAccount>> {
 }
 
 pub(super) fn active() -> Result<LiveAccount> {
-    let active = all()?
-        .into_iter()
+    active_from(&all()?)
+}
+
+fn active_from(accounts: &[LiveAccount]) -> Result<LiveAccount> {
+    let active = accounts
+        .iter()
         .find(|a| a.active)
         .context("No active GitHub account")?;
     ensure!(
@@ -88,7 +104,7 @@ pub(super) fn active() -> Result<LiveAccount> {
         active.login,
         active.error.as_deref().unwrap_or(&active.state)
     );
-    Ok(active)
+    Ok(active.clone())
 }
 
 pub(super) fn ensure_login(username: &str) -> Result<()> {

@@ -6,6 +6,65 @@ use std::fs;
 use std::io::Write;
 use std::process::Stdio;
 
+/// Long outgoing histories must detect an older committer's additional Unicode address and
+/// still exclude it when the remote baseline already contains that commit.
+#[test]
+fn long_history_checks_older_committers_and_unicode_addresses() {
+    let env = Sandbox::new();
+    env.init_repo();
+    env.setup_defaults();
+    env.success(&["repo", "allowed", "add", "personal"]);
+    fs::write(
+        &env.config,
+        IDENTITIES.replace(
+            "\"email\": \"work@example.com\"",
+            "\"email\": \"work@example.com\", \"additional_emails\": [\"ÉQUIPE@EXAMPLE.COM\"]",
+        ),
+    )
+    .unwrap();
+    let mut history = String::new();
+    for index in 0..260 {
+        let email = if index == 1 {
+            "équipe@example.com"
+        } else {
+            "other@example.com"
+        };
+        history.push_str(&format!(
+            "commit refs/heads/large\nmark :{}\nauthor Collaborator <other@example.com> 1700000000 +0000\ncommitter Collaborator <{email}> 1700000000 +0000\ndata 1\nx\n",
+            index + 1,
+        ));
+        if index > 0 {
+            history.push_str(&format!("from :{index}\n"));
+        }
+        history.push('\n');
+    }
+    let mut child = env
+        .command("git")
+        .args(["fast-import", "--quiet"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(history.as_bytes())
+        .unwrap();
+    assert_ok(&child.wait_with_output().unwrap());
+    let head = env.git_without_hooks(&["rev-parse", "large"]);
+    let bad = env.git_without_hooks(&["rev-parse", "large~258"]);
+    let zero = "0".repeat(40);
+    let input = format!("refs/heads/large {head} refs/heads/large {zero}\n");
+    let rejected = env.hook("pre-push", input.as_bytes(), &[]);
+    assert!(!rejected.status.success(), "{}", both(&rejected));
+    assert!(err(&rejected).contains(&bad[..12]), "{}", both(&rejected));
+    assert!(err(&rejected).contains("contains your work identity"));
+    let input = format!("refs/heads/large {head} refs/heads/large {bad}\n");
+    assert_ok(&env.hook("pre-push", input.as_bytes(), &[]));
+}
+
 /// Push checks must validate input and baselines, inspect outgoing history and leave rejected
 /// remote refs absent.
 #[test]

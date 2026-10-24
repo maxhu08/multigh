@@ -511,16 +511,27 @@ fn switch_inner(
 ) -> Result<()> {
     let catalog = inv.catalog(false)?;
     let repo = Repository::discover()?;
+    switch_in_repository(inv, &catalog, repo.as_ref(), name, kind, ui, writes)
+}
+
+fn switch_in_repository(
+    inv: &Invocation,
+    catalog: &Catalog,
+    repo: Option<&Repository>,
+    name: &str,
+    kind: SwitchKind,
+    ui: &mut dyn Interaction,
+    writes: &mut Writes,
+) -> Result<()> {
     let target = catalog.resolve(&IdentitySelector::new(name))?;
     let prepared = repo
-        .as_ref()
-        .map(|r| r.prepare_selection(&catalog, target))
+        .map(|r| r.prepare_selection(catalog, target))
         .transpose()?;
     let switch_warning = if matches!(kind, SwitchKind::Explicit)
-        && let Some(repo) = &repo
+        && let Some(repo) = repo
         && repo.protections()?
     {
-        let allowed = repo.allowed(&catalog)?;
+        let allowed = repo.allowed(catalog)?;
         if allowed
             .iter()
             .any(|identity| identity.name() == target.name())
@@ -532,9 +543,17 @@ fn switch_inner(
     } else {
         None
     };
-    let prior = accounts::selected().ok().flatten();
-    let (prior_name, prior_email) = repositories::global_defaults()?;
-    repositories::refresh(&catalog, &inv.origin, writes)?;
+    let prior = if matches!(kind, SwitchKind::Explicit) {
+        accounts::selected().ok().flatten()
+    } else {
+        None
+    };
+    let (prior_name, prior_email) = if matches!(kind, SwitchKind::Explicit) {
+        repositories::global_defaults()?
+    } else {
+        (None, None)
+    };
+    repositories::refresh(catalog, &inv.origin, writes)?;
     accounts::switch(target.username())?;
     repositories::set_global(target, &inv.origin, writes)?;
     if let Some(prepared) = prepared {
@@ -543,7 +562,7 @@ fn switch_inner(
     if matches!(kind, SwitchKind::Automatic) {
         return Ok(());
     }
-    let prior_identity = selected_identity(&catalog, prior.as_ref());
+    let prior_identity = selected_identity(catalog, prior.as_ref());
     ui.heading_parts(&[
         ("Identity selected [", Meaning::Heading),
         (prior_identity, Meaning::Identity),
@@ -670,13 +689,18 @@ pub(super) fn repo_status(
     ui: &mut dyn Interaction,
 ) -> Result<()> {
     repo_report(repo, Some(catalog), catalog.path(), ui)?;
-    report_identity_match(repo, catalog, ui);
+    report_identity_match(repo, catalog, &accounts::AccountQueries::default(), ui);
     Ok(())
 }
 
-fn report_identity_match(repo: &Repository, catalog: &Catalog, ui: &mut dyn Interaction) {
+fn report_identity_match(
+    repo: &Repository,
+    catalog: &Catalog,
+    accounts: &accounts::AccountQueries,
+    ui: &mut dyn Interaction,
+) {
     ui.separate();
-    match repo.commit_check(catalog, &accounts::AccountQueries) {
+    match repo.commit_check(catalog, accounts) {
         Err(error) => ui.warning(&format!("{error:#}")),
         Ok(()) => ui.message("Identity and commit details match", Meaning::Success),
     }
@@ -758,11 +782,19 @@ pub(super) fn enter(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> {
     let Some(repo) = Repository::discover()? else {
         return Ok(());
     };
+    enter_repository(inv, &repo, ui).map(|_| ())
+}
+
+fn enter_repository(
+    inv: &Invocation,
+    repo: &Repository,
+    ui: &mut dyn Interaction,
+) -> Result<Option<accounts::SelectedAccount>> {
     let enabled = repo.protections()?;
     let auto = preferences::get(Preference::Autoswitch)?;
     let verbose = preferences::get(Preference::Verbose)?;
     if !enabled && !auto && !verbose {
-        return Ok(());
+        return Ok(None);
     }
     if auto {
         ui.progress("Autoswitch: checking identity", false);
@@ -794,17 +826,18 @@ pub(super) fn enter(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> {
     }
     let mut selected = false;
     if enabled && allowed.is_empty() {
-        if let Err(e) = pick_permissions(&repo, &catalog, ui) {
+        if let Err(e) = pick_permissions(repo, &catalog, ui) {
             ui.warning(&format!("{e:#}"));
             ui.warning("No identities selected; commits and pushes remain blocked. Run: mgh repo allowed update");
             if !readiness.healthy() {
                 ui.warning("Repair hooks with mgh setup and choose identities before committing or pushing.");
             }
-            return Ok(());
+            return Ok(None);
         }
         allowed = repo.allowed(&catalog)?;
         selected = true;
     }
+    let mut unchanged_account = None;
     if auto && !allowed.is_empty() {
         selected = true;
         if progress_interrupted {
@@ -820,6 +853,7 @@ pub(super) fn enter(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> {
             let name = selected_identity(&catalog, account.as_ref());
             if allowed.len() == 1 && current.is_some() {
                 ui.progress(&format!("; {name} is allowed, no switch needed."), true);
+                unchanged_account = account;
                 return Ok(());
             }
             let target = if allowed.len() == 1 {
@@ -862,7 +896,15 @@ pub(super) fn enter(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> {
                 allowed.iter().any(|i| i.name() == target),
                 "Selected identity is not allowed"
             );
-            switch_inner(inv, &target, SwitchKind::Automatic, ui, &mut writes)?;
+            switch_in_repository(
+                inv,
+                &catalog,
+                Some(repo),
+                &target,
+                SwitchKind::Automatic,
+                ui,
+                &mut writes,
+            )?;
             ui.progress(" done.", true);
             Ok(())
         })();
@@ -875,9 +917,9 @@ pub(super) fn enter(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> {
         }
     }
     if verbose && !selected {
-        repo_report(&repo, Some(&catalog), catalog.path(), ui)?;
+        repo_report(repo, Some(&catalog), catalog.path(), ui)?;
     }
-    Ok(())
+    Ok(unchanged_account)
 }
 
 pub(super) fn status(inv: &Invocation, full: bool, ui: &mut dyn Interaction) -> Result<()> {
@@ -915,7 +957,12 @@ pub(super) fn status(inv: &Invocation, full: bool, ui: &mut dyn Interaction) -> 
     if let Some(repo) = Repository::discover()? {
         repo_details(&repo, catalog.as_ref(), &inv.path()?, ui)?;
         if let Some(catalog) = &catalog {
-            report_identity_match(&repo, catalog, ui);
+            report_identity_match(
+                &repo,
+                catalog,
+                &accounts::AccountQueries::from_accounts(&accounts),
+                ui,
+            );
         }
     }
     if full {
@@ -929,11 +976,36 @@ pub(super) fn status(inv: &Invocation, full: bool, ui: &mut dyn Interaction) -> 
     Ok(())
 }
 
+pub(super) fn startup(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> {
+    let repo = Repository::discover()?;
+    let unchanged_account = match &repo {
+        Some(repo) => enter_repository(inv, repo, ui)?,
+        None => None,
+    };
+    if preferences::get(Preference::Welcome)? {
+        welcome_in_repository(inv, repo.as_ref(), unchanged_account, ui)?;
+    }
+    Ok(())
+}
+
 pub(super) fn welcome(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> {
     if !preferences::get(Preference::Welcome)? {
         return Ok(());
     }
-    let account = accounts::selected()?;
+    welcome_in_repository(inv, Repository::discover()?.as_ref(), None, ui)
+}
+
+fn welcome_in_repository(
+    inv: &Invocation,
+    repo: Option<&Repository>,
+    unchanged_account: Option<accounts::SelectedAccount>,
+    ui: &mut dyn Interaction,
+) -> Result<()> {
+    // Reuse the fresh entry query only when authentication did not change.
+    let account = match unchanged_account {
+        Some(account) => Some(account),
+        None => accounts::selected()?,
+    };
     let catalog = match inv.catalog(false) {
         Ok(c) => Some(c),
         Err(e) => {
@@ -948,7 +1020,6 @@ pub(super) fn welcome(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> 
                 .is_some_and(|a| a.login().eq_ignore_ascii_case(i.username()))
         })
     });
-    let repo = Repository::discover()?;
     let email = if let Some(identity) = identity {
         Some(identity.email().to_string())
     } else if let Some(repo) = &repo {

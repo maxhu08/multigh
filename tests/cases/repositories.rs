@@ -36,6 +36,64 @@ fn missing_repo_and_configuration_error_order() {
     assert!(!err(&o).contains("No Git repository found"));
 }
 
+/// Repository paths containing newlines must retain their full root and shared config path.
+#[test]
+fn repository_discovery_preserves_newlines_in_paths() {
+    let env = Sandbox::new();
+    let repo = env.root.join("repo\nwith a newline");
+    fs::create_dir(&repo).unwrap();
+    assert_ok(
+        &env.command("git")
+            .current_dir(&repo)
+            .args(["init", "-b", "main"])
+            .output()
+            .unwrap(),
+    );
+    env.write_identities();
+    for bare in [false, true] {
+        if bare {
+            assert_ok(
+                &env.command("git")
+                    .current_dir(&repo)
+                    .args(["init", "--bare", "bare\nrepository.git"])
+                    .output()
+                    .unwrap(),
+            );
+        }
+        let cwd = if bare {
+            repo.join("bare\nrepository.git")
+        } else {
+            repo.clone()
+        };
+        assert_ok(
+            &env.mgh(&["repo", "allowed", "add", "personal"])
+                .current_dir(&cwd)
+                .output()
+                .unwrap(),
+        );
+        let config = if bare {
+            cwd.join("config")
+        } else {
+            cwd.join(".git/config")
+        };
+        assert!(
+            String::from_utf8(bytes(config))
+                .unwrap()
+                .contains("personal")
+        );
+        let report = env
+            .mgh(&["repo", "status"])
+            .current_dir(&cwd)
+            .output()
+            .unwrap();
+        assert_ok(&report);
+        assert!(out(&report).contains("with a newline"), "{}", both(&report));
+        if bare {
+            assert!(out(&report).contains("repository.git"), "{}", both(&report));
+        }
+    }
+}
+
 /// Only explicit permission changes grant access; switching and stale-reference recovery must
 /// preserve policy.
 #[test]

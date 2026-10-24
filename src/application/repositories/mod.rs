@@ -50,29 +50,46 @@ impl<'a> PermissionSelection<'a> {
 impl Repository {
     pub fn discover() -> Result<Option<Self>> {
         let git = Git::here()?;
-        let out = platform::output(git.command().args(["rev-parse", "--absolute-git-dir"]))?;
-        if !out.status.success() {
-            let err = String::from_utf8_lossy(&out.stderr);
-            if err.starts_with("fatal: not a git repository") {
+        let args = [
+            "rev-parse",
+            "--is-bare-repository",
+            "--path-format=absolute",
+            "--git-common-dir",
+        ];
+        let out = match platform::output(git.command().args(args)) {
+            Ok(out) if out.status.success() => out,
+            Ok(out)
+                if String::from_utf8_lossy(&out.stderr)
+                    .starts_with("fatal: not a git repository") =>
+            {
                 return Ok(None);
             }
-            bail!(
-                "git repository discovery failed ({}): {}",
-                out.status,
-                err.trim()
-            );
-        }
-        let common = PathBuf::from(
-            git::checked_text(git.run([
-                "rev-parse",
-                "--path-format=absolute",
-                "--git-common-dir",
-            ])?)?
-            .trim(),
-        );
-        let bare = git::checked_text(git.run(["rev-parse", "--is-bare-repository"])?)?;
+            _ => {
+                // Keep the original discovery diagnostics when the combined query fails.
+                let out =
+                    platform::output(git.command().args(["rev-parse", "--absolute-git-dir"]))?;
+                if !out.status.success() {
+                    let err = String::from_utf8_lossy(&out.stderr);
+                    if err.starts_with("fatal: not a git repository") {
+                        return Ok(None);
+                    }
+                    bail!(
+                        "git repository discovery failed ({}): {}",
+                        out.status,
+                        err.trim()
+                    );
+                }
+                git.run(args)?
+            }
+        };
+        let details = git::checked_text(out)?;
+        // The boolean comes first so paths containing newlines remain intact.
+        let (bare, common) = details
+            .split_once('\n')
+            .context("Malformed Git repository discovery response")?;
+        let common = PathBuf::from(common.trim());
         let root = if bare.trim() == "true" {
-            PathBuf::from(platform::text(out.stdout)?.trim())
+            PathBuf::from(git::checked_text(git.run(["rev-parse", "--absolute-git-dir"])?)?.trim())
         } else {
             PathBuf::from(git::checked_text(git.run(["rev-parse", "--show-toplevel"])?)?.trim())
         };
@@ -153,10 +170,7 @@ impl Repository {
     }
 
     pub fn effective_details(&self) -> Result<(Option<String>, Option<String>)> {
-        Ok((
-            self.git.effective("user.name")?,
-            self.git.effective("user.email")?,
-        ))
+        self.git.details(None)
     }
 
     pub fn current(&self) -> Result<Option<String>> {
@@ -278,11 +292,7 @@ pub(super) fn refresh(catalog: &Catalog, origin: &str, writes: &mut GlobalWrites
 }
 
 pub(super) fn global_defaults() -> Result<(Option<String>, Option<String>)> {
-    let g = Git::here()?;
-    Ok((
-        g.value("--global", "user.name")?,
-        g.value("--global", "user.email")?,
-    ))
+    Git::here()?.details(Some("--global"))
 }
 
 pub(super) fn set_global(

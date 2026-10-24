@@ -123,7 +123,7 @@ fn sole_identity_autoswitch_skips_an_already_selected_account() {
     let text = out(&o);
     assert_eq!(
         text,
-        "\n    Autoswitch: checking identity; work is allowed, no switch needed.\n\n"
+        "\n  Autoswitch: checking identity; work is allowed, no switch needed.\n\n"
     );
     assert!(o.stderr.is_empty());
 }
@@ -149,7 +149,7 @@ fn autoswitch_reports_progress_before_querying_github() {
     let text = fs::read_to_string(&captured).unwrap();
     assert_eq!(
         text,
-        "\n    Autoswitch: checking identity; personal is not allowed, switching to work... done.\n\n"
+        "\n  Autoswitch: checking identity; personal is not allowed, switching to work... done.\n\n"
     );
     assert_eq!(env.accounts()["selected"], "alice-work");
 
@@ -192,7 +192,7 @@ fn entry_reports_identity_transition_without_internal_git_details() {
     let text = out(&o);
     assert_eq!(
         text,
-        "\n    Autoswitch: checking identity; personal is not allowed, switching to work... done.\n\n"
+        "\n  Autoswitch: checking identity; personal is not allowed, switching to work... done.\n\n"
     );
     assert!(!text.contains("Global Git config"), "{text}");
     assert!(!text.contains("mgh internal"), "{text}");
@@ -231,7 +231,7 @@ fn entry_reports_identity_transition_without_internal_git_details() {
     let text = out(&env.success(&["internal", "enter"]));
     assert_eq!(
         text,
-        "\n    Autoswitch: checking identity; foreign is not allowed, switching to work... done.\n\n"
+        "\n  Autoswitch: checking identity; foreign is not allowed, switching to work... done.\n\n"
     );
     assert!(!text.contains("mgh internal"), "{text}");
 
@@ -248,7 +248,7 @@ fn entry_reports_identity_transition_without_internal_git_details() {
     let text = out(&env.success(&["internal", "enter"]));
     assert_eq!(
         text,
-        "\n    Autoswitch: checking identity; no current identity, switching to work... done.\n\n"
+        "\n  Autoswitch: checking identity; no current identity, switching to work... done.\n\n"
     );
     assert!(!text.contains("mgh internal"), "{text}");
 }

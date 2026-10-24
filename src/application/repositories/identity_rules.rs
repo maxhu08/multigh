@@ -2,9 +2,20 @@ use super::{Catalog, Git, GlobalWrites, platform, preferences};
 use anyhow::{Result, ensure};
 use std::{collections::BTreeMap, path::PathBuf};
 
+const RULE_PATTERN: &str = "^include[Ii]f\\.hasconfig:remote\\.\\*\\.url:.*\\.path$";
+
 pub(super) fn refresh(catalog: &Catalog, origin: &str, writes: &mut GlobalWrites) -> Result<()> {
     let git = Git::here()?;
     let dir = preferences::state()?.join("identities");
+    // Check inherited rules for conflicts, but only remove rules from the writable global config.
+    let configured = git.config_map([
+        "config",
+        "--global",
+        "--includes",
+        "--null",
+        "--get-regexp",
+        RULE_PATTERN,
+    ])?;
     let mut desired = BTreeMap::new();
     for identity in catalog.all() {
         let path = dir.join(format!("git-{}.conf", identity.name()));
@@ -18,7 +29,7 @@ pub(super) fn refresh(catalog: &Catalog, origin: &str, writes: &mut GlobalWrites
                 "includeif.hasconfig:remote.*.url:{prefix}{}/**.path",
                 identity.username()
             );
-            for old in git.global_values(&key)? {
+            for old in configured.get(&key).into_iter().flatten() {
                 ensure!(
                     PathBuf::from(&old).parent() == Some(dir.as_path()),
                     "Conflicting identity rule {key} points to {old}; it was left intact"
@@ -27,21 +38,14 @@ pub(super) fn refresh(catalog: &Catalog, origin: &str, writes: &mut GlobalWrites
             desired.insert(key, path.to_string_lossy().to_string());
         }
     }
-    let existing = git.optional([
-        "config",
-        "--global",
-        "--null",
-        "--get-regexp",
-        "^include[Ii]f\\.hasconfig:remote\\.\\*\\.url:.*\\.path$",
-    ])?;
+    let existing =
+        git.config_map(["config", "--global", "--null", "--get-regexp", RULE_PATTERN])?;
     let mut obsolete = vec![];
-    if let Some(bytes) = existing {
-        for record in String::from_utf8(bytes)?.split_terminator('\0') {
-            if let Some((key, value)) = record.split_once('\n')
-                && PathBuf::from(value).parent() == Some(dir.as_path())
-                && !desired.contains_key(key)
+    for (key, values) in existing {
+        for value in values {
+            if PathBuf::from(&value).parent() == Some(dir.as_path()) && !desired.contains_key(&key)
             {
-                obsolete.push((key.to_string(), value.to_string()));
+                obsolete.push((key.clone(), value));
             }
         }
     }
@@ -55,18 +59,23 @@ pub(super) fn refresh(catalog: &Catalog, origin: &str, writes: &mut GlobalWrites
         );
         // Existing provenance remains byte-for-byte when the semantic values did not change.
         let current = if path.exists() {
-            let mut c = git.command();
-            c.args(["config", "--file"])
-                .arg(&path)
-                .args(["--get", "user.name"]);
-            let name = platform::successful(&mut c)?;
-            let mut c = git.command();
-            c.args(["config", "--file"])
-                .arg(&path)
-                .args(["--get", "user.email"]);
-            let email = platform::successful(&mut c)?;
-            String::from_utf8(name.stdout)?.trim_end() == identity.commit_name()
-                && String::from_utf8(email.stdout)?.trim_end() == identity.email()
+            let values = git.config_map([
+                std::ffi::OsStr::new("config"),
+                std::ffi::OsStr::new("--file"),
+                path.as_os_str(),
+                std::ffi::OsStr::new("--null"),
+                std::ffi::OsStr::new("--get-regexp"),
+                std::ffi::OsStr::new("^user\\.(name|email)$"),
+            ])?;
+            let name = values.get("user.name").and_then(|v| v.last());
+            let email = values.get("user.email").and_then(|v| v.last());
+            ensure!(
+                name.is_some() && email.is_some(),
+                "Generated identity file {} is missing commit details",
+                path.display()
+            );
+            name.unwrap().trim_end() == identity.commit_name()
+                && email.unwrap().trim_end() == identity.email()
         } else {
             false
         };
@@ -78,7 +87,14 @@ pub(super) fn refresh(catalog: &Catalog, origin: &str, writes: &mut GlobalWrites
         writes.remove_value(&git, &key, &value)?;
     }
     for (key, value) in desired {
-        writes.set(&git, &key, &value, origin)?;
+        // Reuse this refresh's values instead of starting a Git read for every rule.
+        writes.set_values(
+            &git,
+            &key,
+            &value,
+            origin,
+            configured.get(&key).cloned().unwrap_or_default(),
+        )?;
     }
     Ok(())
 }

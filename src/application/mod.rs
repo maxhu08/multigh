@@ -200,8 +200,7 @@ impl Invocation {
     }
 
     pub fn startup(&self, ui: &mut dyn Interaction) -> Result<()> {
-        self.enter_repository(ui)?;
-        self.welcome(ui)
+        workflows::startup(self, ui)
     }
 
     pub fn doctor(&self, ui: &mut dyn Interaction) -> Result<()> {
@@ -222,7 +221,7 @@ impl Invocation {
             name,
             args,
             &|| self.path(),
-            &accounts::AccountQueries,
+            &accounts::AccountQueries::default(),
             &mut || self.enter_repository(ui),
         )
     }
@@ -248,8 +247,10 @@ impl RepositoryActions<'_> {
     }
 
     pub fn check(&self) -> Result<()> {
-        self.repo
-            .commit_check(&self.invocation.catalog(false)?, &accounts::AccountQueries)
+        self.repo.commit_check(
+            &self.invocation.catalog(false)?,
+            &accounts::AccountQueries::default(),
+        )
     }
 
     pub fn protections(&self, state: Option<bool>, ui: &mut dyn Interaction) -> Result<()> {

@@ -37,10 +37,9 @@ pub(super) fn private_dir(path: &Path) -> Result<()> {
 }
 
 pub(super) fn output(command: &mut Command) -> Result<Output> {
-    let description = format!("{command:?}");
     command
         .output()
-        .with_context(|| format!("Cannot execute {description}"))
+        .with_context(|| format!("Cannot execute {command:?}"))
 }
 
 pub(super) fn successful(command: &mut Command) -> Result<Output> {

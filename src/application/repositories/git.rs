@@ -1,6 +1,7 @@
 use crate::application::platform;
 use anyhow::{Context, Result, bail};
 use std::{
+    collections::BTreeMap,
     ffi::OsStr,
     path::{Path, PathBuf},
     process::{Command, Output},
@@ -93,10 +94,23 @@ impl Git {
         Ok(())
     }
 
-    pub fn effective(&self, key: &str) -> Result<Option<String>> {
-        self.optional(["config", "--get", key])?
-            .map(|b| platform::text(b).map(|s| s.trim_end_matches('\n').to_string()))
-            .transpose()
+    pub fn details(&self, scope: Option<&str>) -> Result<(Option<String>, Option<String>)> {
+        let mut args = vec!["config"];
+        args.extend(scope);
+        args.extend([
+            "--includes",
+            "--null",
+            "--get-regexp",
+            "^user\\.(name|email)$",
+        ]);
+        let mut values = self.config_map(args)?;
+        let mut last = |key| {
+            values
+                .remove(key)
+                .and_then(|mut entries| entries.pop())
+                .map(|value| value.trim_end_matches('\n').to_string())
+        };
+        Ok((last("user.name"), last("user.email")))
     }
 
     pub fn global_values(&self, key: &str) -> Result<Vec<String>> {
@@ -108,6 +122,21 @@ impl Git {
             "--get-all",
             key,
         ])?)
+    }
+
+    pub fn config_map<I, S>(&self, args: I) -> Result<BTreeMap<String, Vec<String>>>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        let mut values = BTreeMap::<String, Vec<String>>::new();
+        if let Some(bytes) = self.optional(args)? {
+            for entry in platform::text(bytes)?.split_terminator('\0') {
+                let (key, value) = entry.split_once('\n').unwrap_or((entry, ""));
+                values.entry(key.into()).or_default().push(value.into());
+            }
+        }
+        Ok(values)
     }
 
     pub fn hook_setting(&self) -> Result<Option<Setting>> {
@@ -167,6 +196,17 @@ pub(in crate::application) struct GlobalWrites {
 impl GlobalWrites {
     pub(super) fn set(&mut self, git: &Git, key: &str, value: &str, origin: &str) -> Result<()> {
         let values = git.global_values(key)?;
+        self.set_values(git, key, value, origin, values)
+    }
+
+    pub(super) fn set_values(
+        &mut self,
+        git: &Git,
+        key: &str,
+        value: &str,
+        origin: &str,
+        values: Vec<String>,
+    ) -> Result<()> {
         if !values.is_empty() && values.iter().all(|v| v == value) {
             return Ok(());
         }

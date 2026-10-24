@@ -40,7 +40,11 @@ impl Identity {
     }
 
     pub fn accepts(&self, email: &str) -> bool {
-        self.accepted.contains(&email.to_lowercase())
+        self.accepts_normalized(&email.to_lowercase())
+    }
+
+    pub fn accepts_normalized(&self, email: &str) -> bool {
+        self.accepted.contains(email)
     }
 }
 
@@ -116,6 +120,10 @@ impl Catalog {
     }
 
     fn parse(path: PathBuf, text: &str) -> Result<Self> {
+        Ok(Self::parse_document(path, text)?.0)
+    }
+
+    fn parse_document(path: PathBuf, text: &str) -> Result<(Self, CstRootNode)> {
         let result = (|| {
             let root = parse(text)?;
             let object = root.object_value().context("Root must be an object")?;
@@ -171,10 +179,13 @@ impl Catalog {
                     },
                 );
             }
-            Ok(Self {
-                path: path.clone(),
-                identities,
-            })
+            Ok((
+                Self {
+                    path: path.clone(),
+                    identities,
+                },
+                root,
+            ))
         })();
         result.with_context(|| format!("{}: invalid identity configuration", path.display()))
     }
@@ -317,8 +328,7 @@ impl EditSession {
             Some((bytes, _)) => std::str::from_utf8(bytes)?,
             None => "{}",
         };
-        let catalog = Catalog::parse(path.clone(), text)?;
-        let root = parse(text)?;
+        let (catalog, root) = Catalog::parse_document(path.clone(), text)?;
         Ok(Self {
             path,
             original,

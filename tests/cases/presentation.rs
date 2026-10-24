@@ -229,10 +229,6 @@ fn presentation_padding_alignment_before_after_and_semantic_colors() {
         repo_only.contains("\n\n    Identity and commit details match\n"),
         "{repo_only}"
     );
-    let o = env.success(&["switch", "personal"]);
-    assert!(out(&o).contains('→'));
-    let o = env.success(&["switch", "personal"]);
-    assert!(!out(&o).contains('→'));
     env.driver();
     let exe = env!("CARGO_BIN_EXE_mgh");
     let o = env
@@ -287,8 +283,7 @@ fn presentation_padding_alignment_before_after_and_semantic_colors() {
     assert!(!out(&o).contains("\u{1b}["));
 }
 
-/// Identity and value colors must survive mixed-color messages, while every mgh-owned arrow
-/// remains unstyled.
+/// Heading transitions use a plain pink arrow; field arrows remain unstyled between colored values.
 #[test]
 fn semantic_values_keep_their_colors_and_arrows_are_plain() {
     let env = Sandbox::new();
@@ -308,8 +303,14 @@ fn semantic_values_keep_their_colors_and_arrows_are_plain() {
     let purple = "\x1b[22;38;2;192;132;252m";
     let orange = "\x1b[22;38;2;251;146;60m";
     let slate = "\x1b[22;38;2;148;163;184m";
+    let pink = "\x1b[22;38;2;244;114;182m";
     let reset = "\x1b[0m";
     let plain_arrows = |text: &str| {
+        let text = text
+            .lines()
+            .filter(|line| !line.contains("Identity selected"))
+            .collect::<Vec<_>>()
+            .join("\n");
         let mut count = 0;
         for (offset, _) in text.match_indices('→') {
             let (_, last_style) = text[..offset].rsplit_once("\x1b[").unwrap();
@@ -380,7 +381,28 @@ fn semantic_values_keep_their_colors_and_arrows_are_plain() {
     let manual = terminal(&["switch", "personal"]);
     assert_ok(&manual);
     let text = out(&manual);
-    assert!(text.contains(&format!("{cyan}personal{reset}")), "{text}");
+    assert!(
+        text.contains(&format!(
+            "{cyan}work{reset}{pink} → {reset}{cyan}personal{reset}"
+        )),
+        "{text}"
+    );
+    assert!(
+        text.contains(&format!("{purple}alice-work {reset}→{purple} alice{reset}")),
+        "{text}"
+    );
+    assert!(
+        text.contains(&format!(
+            "{orange}Alice Work {reset}→{orange} Alice Example{reset}"
+        )),
+        "{text}"
+    );
+    assert!(
+        text.contains(&format!(
+            "{orange}work@example.com {reset}→{orange} Alice@example.com{reset}"
+        )),
+        "{text}"
+    );
     plain_arrows(&text);
     let global_before = bytes(env.home.join(".gitconfig"));
     let account_before = bytes(env.root.join("auth.json"));

@@ -949,7 +949,9 @@ pub(super) fn welcome(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> 
         })
     });
     let repo = Repository::discover()?;
-    let email = if let Some(repo) = &repo {
+    let email = if let Some(identity) = identity {
+        Some(identity.email().to_string())
+    } else if let Some(repo) = &repo {
         repo.effective_details()?.1
     } else {
         repositories::global_defaults()?.1

@@ -199,6 +199,11 @@ impl Invocation {
         workflows::welcome(self, ui)
     }
 
+    pub fn startup(&self, ui: &mut dyn Interaction) -> Result<()> {
+        self.enter_repository(ui)?;
+        self.welcome(ui)
+    }
+
     pub fn doctor(&self, ui: &mut dyn Interaction) -> Result<()> {
         workflows::doctor(self, ui)
     }

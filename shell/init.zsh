@@ -24,6 +24,7 @@ if [[ -o interactive && -z ${_MGH_ZSH_LOADED:-} ]]; then
     if (( ! $+functions[git] && ! $+aliases[git] )); then
         function git { mgh internal git -- "$@"; }
     fi
-    mgh internal welcome
-    _mgh_enter
+    _MGH_LAST_PWD=$PWD
+    _MGH_LAST_REPO=$(command git rev-parse --absolute-git-dir 2>/dev/null)
+    mgh internal startup
 fi

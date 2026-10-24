@@ -60,6 +60,7 @@ pub fn run(cli: Cli, ui: &mut dyn Interaction) -> Result<i32> {
             }
         },
         Command::Internal { command } => match command {
+            InternalCommand::Startup => invocation.startup(ui)?,
             InternalCommand::Enter => invocation.enter_repository(ui)?,
             InternalCommand::Welcome => invocation.welcome(ui)?,
             InternalCommand::Hook { name, args } => invocation.handle_hook(&name, &args, ui)?,

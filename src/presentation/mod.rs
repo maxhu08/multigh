@@ -182,7 +182,7 @@ impl Reports for Terminal {
     fn progress(&mut self, text: &str, finished: bool) {
         if !self.progress {
             self.begin(false);
-            print!("{}", " ".repeat(BODY));
+            print!("{}", " ".repeat(SECTION));
             self.progress = true;
         }
         print!("{}", styled(text, Meaning::Path, false));

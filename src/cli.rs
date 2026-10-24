@@ -365,6 +365,7 @@ pub enum ShellCommand {
 
 #[derive(Subcommand, Debug)]
 pub enum InternalCommand {
+    Startup,
     Enter,
     Welcome,
     Hook {

@@ -22,8 +22,9 @@ if status is-interactive
         end
         function _mgh_startup --on-event fish_prompt
             functions --erase _mgh_startup
-            mgh internal welcome </dev/tty
-            _mgh_enter </dev/tty
+            set -g _MGH_LAST_PWD "$PWD"
+            set -g _MGH_LAST_REPO (command git rev-parse --absolute-git-dir 2>/dev/null)
+            mgh internal startup </dev/tty
         end
     end
 end

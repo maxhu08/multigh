@@ -140,7 +140,7 @@ impl Repository {
     fn project_directory(&self) -> Result<PathBuf> {
         let saved = self
             .git
-            .optional(["config", "--path", "--get", "mgh.originalHooksPath"])?
+            .optional_config(["config", "--path", "--get", "mgh.originalHooksPath"])?
             .map(|b| platform::text(b).map(|s| s.trim_end_matches('\n').to_string()))
             .transpose()?;
         match saved {

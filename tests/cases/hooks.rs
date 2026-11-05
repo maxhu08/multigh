@@ -370,6 +370,179 @@ fn native_commit_rejection_preserves_refs_and_native_hooks() {
     assert!(env.repo.join("native-called").exists());
 }
 
+/// Reference updates from Git directories must retain shared policy and native hook I/O.
+#[test]
+fn native_reference_transactions_from_git_directories_preserve_hooks_and_policy() {
+    let env = Sandbox::new();
+    env.init_repo();
+    env.setup_defaults();
+    let id = env.commit_without_hooks("Alice Example", "Alice@example.com");
+    let tree = env.root.join("linked tree");
+    env.git_without_hooks(&["worktree", "add", "-b", "linked", tree.to_str().unwrap()]);
+    let linked_gitdir = env.git_without_hooks(&[
+        "-C",
+        tree.to_str().unwrap(),
+        "rev-parse",
+        "--absolute-git-dir",
+    ]);
+    let bare = env.root.join("bare.git");
+    env.git_without_hooks(&[
+        "clone",
+        "--bare",
+        env.repo.to_str().unwrap(),
+        bare.to_str().unwrap(),
+    ]);
+    let separate_tree = env.root.join("separate checkout");
+    let separate_gitdir = env.root.join("separate metadata");
+    env.git_without_hooks(&[
+        "clone",
+        "--separate-git-dir",
+        separate_gitdir.to_str().unwrap(),
+        env.repo.to_str().unwrap(),
+        separate_tree.to_str().unwrap(),
+    ]);
+    let log = env.root.join("reference log");
+    fs::create_dir(&log).unwrap();
+    let body = format!(
+        "printf '%s\\n' \"$@\" > {log}/\"$1\".args\ncat > {log}/\"$1\".input\npwd > {log}/cwd\necho called >> {log}/calls\nif [ -f {log}/reject ] && [ \"$1\" = prepared ]; then\n echo preserved-rejected >&2; exit 7\nfi",
+        log = shquote(log.to_str().unwrap()),
+    );
+    env.write_hook("reference-transaction", &body, true);
+    let bare_hook = bare.join("hooks/reference-transaction");
+    fs::write(&bare_hook, format!("#!/bin/sh\n{body}\n")).unwrap();
+    fs::set_permissions(&bare_hook, fs::Permissions::from_mode(0o700)).unwrap();
+    let separate_hook = separate_gitdir.join("hooks/reference-transaction");
+    fs::write(&separate_hook, format!("#!/bin/sh\n{body}\n")).unwrap();
+    fs::set_permissions(&separate_hook, fs::Permissions::from_mode(0o700)).unwrap();
+    let zero = "0".repeat(40);
+    for cwd in [
+        env.repo.clone(),
+        env.repo.join(".git"),
+        tree,
+        linked_gitdir.into(),
+        bare,
+        separate_tree,
+        separate_gitdir,
+    ] {
+        let update = |args: &[&str]| {
+            env.command("git")
+                .current_dir(&cwd)
+                .args(args)
+                .output()
+                .unwrap()
+        };
+        let reference = "refs/heads/migrated";
+        assert_ok(&update(&["update-ref", reference, &id, &zero]));
+        assert_eq!(out(&update(&["rev-parse", reference])).trim(), id);
+        for phase in ["prepared", "committed"] {
+            assert_eq!(
+                bytes(log.join(format!("{phase}.args"))),
+                format!("{phase}\n").as_bytes()
+            );
+            assert_eq!(
+                bytes(log.join(format!("{phase}.input"))),
+                format!("{zero} {id} {reference}\n").as_bytes()
+            );
+        }
+        assert_eq!(
+            fs::canonicalize(String::from_utf8(bytes(log.join("cwd"))).unwrap().trim()).unwrap(),
+            fs::canonicalize(&cwd).unwrap()
+        );
+        let project = cwd.join("project-hooks");
+        fs::create_dir(&project).unwrap();
+        let hook = project.join("reference-transaction");
+        fs::write(&hook, format!("#!/bin/sh\n{body}\n")).unwrap();
+        fs::set_permissions(&hook, fs::Permissions::from_mode(0o700)).unwrap();
+        assert_ok(&update(&[
+            "config",
+            "--local",
+            "mgh.originalHooksPath",
+            "project-hooks",
+        ]));
+        let calls = bytes(log.join("calls"));
+        assert_ok(&update(&[
+            "config",
+            "--local",
+            "mgh.protections",
+            "invalid",
+        ]));
+        let rejected = update(&["update-ref", "-d", reference, &id]);
+        assert!(!rejected.status.success(), "{}", both(&rejected));
+        assert!(
+            err(&rejected).contains("fail closed"),
+            "{}",
+            both(&rejected)
+        );
+        assert_eq!(bytes(log.join("calls")), calls);
+        assert_eq!(out(&update(&["rev-parse", reference])).trim(), id);
+        assert_ok(&update(&[
+            "config",
+            "--local",
+            "--unset-all",
+            "mgh.protections",
+        ]));
+        fs::write(log.join("reject"), "").unwrap();
+        let rejected = update(&["update-ref", "-d", reference, &id]);
+        assert!(!rejected.status.success(), "{}", both(&rejected));
+        assert!(
+            err(&rejected).contains("preserved-rejected"),
+            "{}",
+            both(&rejected)
+        );
+        assert_eq!(out(&update(&["rev-parse", reference])).trim(), id);
+        fs::remove_file(log.join("reject")).unwrap();
+        assert_ok(&update(&["update-ref", "-d", reference, &id]));
+        assert_ok(&update(&[
+            "config",
+            "--local",
+            "--unset-all",
+            "mgh.originalHooksPath",
+        ]));
+    }
+}
+
+/// Protected pushes must replay input to LFS only after mgh accepts the outgoing history.
+#[test]
+fn protected_pre_push_delegates_to_lfs_and_preserves_rejection() {
+    let env = Sandbox::new();
+    env.init_repo();
+    env.setup_defaults();
+    env.success(&["repo", "allowed", "add", "personal"]);
+    let id = env.commit_without_hooks("Alice Example", "Alice@example.com");
+    let lfs = env.bin.join("git-lfs");
+    fs::write(
+        &lfs,
+        "#!/bin/sh\nprintf '%s\\n' \"$@\" > lfs-args\ncat > lfs-input\nif [ -f lfs-reject ]; then echo lfs-rejected >&2; exit 7; fi\n",
+    )
+    .unwrap();
+    fs::set_permissions(&lfs, fs::Permissions::from_mode(0o700)).unwrap();
+    env.write_hook("pre-push", "git lfs pre-push \"$@\"", true);
+    let managed = bytes(env.state.join("hooks/pre-push"));
+    let zero = "0".repeat(40);
+    let input = format!("refs/heads/main {id} refs/heads/main {zero}\n");
+    let args = ["origin", "ssh://example.invalid/repository.git"];
+    assert_ok(&env.hook("pre-push", input.as_bytes(), &args));
+    assert_eq!(
+        bytes(env.repo.join("lfs-args")),
+        b"pre-push\norigin\nssh://example.invalid/repository.git\n"
+    );
+    assert_eq!(bytes(env.repo.join("lfs-input")), input.as_bytes());
+    fs::write(env.repo.join("lfs-reject"), "").unwrap();
+    let rejected = env.hook("pre-push", input.as_bytes(), &args);
+    assert!(!rejected.status.success());
+    assert!(err(&rejected).contains("lfs-rejected"));
+    fs::remove_file(env.repo.join("lfs-args")).unwrap();
+    fs::remove_file(env.repo.join("lfs-input")).unwrap();
+    let bad = env.commit_without_hooks("Collaborator", "work@example.com");
+    let input = format!("refs/heads/main {bad} refs/heads/main {zero}\n");
+    let rejected = env.hook("pre-push", input.as_bytes(), &args);
+    assert!(!rejected.status.success());
+    assert!(err(&rejected).contains("contains your work identity"));
+    assert!(!env.repo.join("lfs-args").exists());
+    assert!(!env.repo.join("lfs-input").exists());
+    assert_eq!(bytes(env.state.join("hooks/pre-push")), managed);
+}
+
 /// Real normal, bare and no-checkout clones must not inherit the source repository's local
 /// authorization.
 #[test]

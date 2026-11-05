@@ -85,4 +85,16 @@ Autoswitch is OFF by default. It selects the sole allowed identity, or prompts w
 
 Existing project hooks continue to run. Custom global hook paths require manual integration; setup reports them instead of replacing them. Push checks also reject outgoing commits attributed to your other disallowed configured identities. These are local safeguards: tools that bypass Git hooks can bypass the checks.
 
+### Git LFS
+
+From the root of a normal checkout (where `.git` is a directory), install LFS into the preserved repository hooks rather than mgh's shared hooks:
+
+```sh
+git -c core.hooksPath=.git/hooks lfs install --local
+```
+
+The override applies only to installation. Normal Git operations still use mgh's managed hooks; protected pushes run mgh checks before forwarding arguments and input to `git lfs pre-push`. Do not force LFS to overwrite the shared hooks or disable protections to install it.
+
+For linked worktrees, run this from the main checkout, not the linked worktree where `.git` is a file. If mgh preserves a custom hook directory (for example, Husky), use `git lfs install --local --manual` and integrate LFS into those existing hooks instead; `.git/hooks` is not the forwarded directory in that case.
+
 For problems, run `mgh doctor`, then `mgh setup` to refresh integration. For build and test instructions, see [Development](docs/development.md).

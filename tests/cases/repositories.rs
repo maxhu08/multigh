@@ -395,6 +395,60 @@ fn protection_boolean_defaults_and_global_exception_does_not_authorize() {
     assert!(env.repo.join("called").exists());
 }
 
+/// Trace diagnostics must not turn missing configuration into errors or weaken validation.
+#[test]
+fn traced_configuration_defaults_and_boolean_validation_remain_protected() {
+    let env = Sandbox::new();
+    env.init_repo();
+    env.setup_defaults();
+    env.success(&["repo", "allowed", "add", "personal"]);
+    let protections = || {
+        env.mgh(&["repo", "protections"])
+            .env("GIT_TRACE", "1")
+            .output()
+            .unwrap()
+    };
+    let hook = || {
+        env.mgh(&["internal", "hook", "pre-commit"])
+            .env("GIT_TRACE", "1")
+            .output()
+            .unwrap()
+    };
+    let defaults = protections();
+    assert_ok(&defaults);
+    assert!(out(&defaults).contains("ON"));
+    env.write_hook("pre-commit", "echo called > traced-hook", true);
+    assert_ok(&hook());
+    fs::remove_file(env.repo.join("traced-hook")).unwrap();
+    env.set_local("user.name", "Wrong");
+    let rejected = hook();
+    assert!(!rejected.status.success());
+    assert!(err(&rejected).contains("AUTHOR"), "{}", both(&rejected));
+    assert!(!env.repo.join("traced-hook").exists());
+    env.set_local("mgh.protections", "false");
+    let disabled = protections();
+    assert_ok(&disabled);
+    assert!(out(&disabled).contains("OFF"));
+    assert_ok(&hook());
+    fs::remove_file(env.repo.join("traced-hook")).unwrap();
+    env.set_local("mgh.protections", "true");
+    let enabled = protections();
+    assert_ok(&enabled);
+    assert!(out(&enabled).contains("ON"));
+    env.set_local("mgh.protections", "invalid");
+    let invalid = protections();
+    assert!(!invalid.status.success());
+    assert!(err(&invalid).contains("fail closed"));
+    let rejected = hook();
+    assert!(!rejected.status.success());
+    assert!(err(&rejected).contains("fail closed"));
+    assert!(!env.repo.join("traced-hook").exists());
+    fs::write(env.repo.join(".git/config"), "[bad\n").unwrap();
+    let malformed = protections();
+    assert!(!malformed.status.success());
+    assert!(err(&malformed).contains("git repository discovery failed"));
+}
+
 /// A later email-write failure must preserve and report the completed name change and its
 /// provenance.
 #[test]

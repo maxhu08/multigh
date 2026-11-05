@@ -52,7 +52,7 @@ impl Repository {
         let git = Git::here()?;
         let args = [
             "rev-parse",
-            "--is-bare-repository",
+            "--is-inside-work-tree",
             "--path-format=absolute",
             "--git-common-dir",
         ];
@@ -84,14 +84,16 @@ impl Repository {
         };
         let details = git::checked_text(out)?;
         // The boolean comes first so paths containing newlines remain intact.
-        let (bare, common) = details
+        let (inside_work_tree, common) = details
             .split_once('\n')
             .context("Malformed Git repository discovery response")?;
         let common = PathBuf::from(common.trim());
-        let root = if bare.trim() == "true" {
-            PathBuf::from(git::checked_text(git.run(["rev-parse", "--absolute-git-dir"])?)?.trim())
-        } else {
+        // A non-bare repository need not have a worktree available to this
+        // invocation, e.g. update-ref from its Git directory during LFS migration.
+        let root = if inside_work_tree.trim() == "true" {
             PathBuf::from(git::checked_text(git.run(["rev-parse", "--show-toplevel"])?)?.trim())
+        } else {
+            PathBuf::from(git::checked_text(git.run(["rev-parse", "--absolute-git-dir"])?)?.trim())
         };
         Ok(Some(Self { git, root, common }))
     }
@@ -134,7 +136,7 @@ impl Repository {
         let config = self.config();
         let value = self
             .git
-            .optional([
+            .optional_config([
                 std::ffi::OsStr::new("config"),
                 std::ffi::OsStr::new("--file"),
                 config.as_os_str(),

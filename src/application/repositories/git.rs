@@ -32,7 +32,7 @@ impl Git {
         platform::successful(self.command().args(args))
     }
 
-    pub fn optional<I, S>(&self, args: I) -> Result<Option<Vec<u8>>>
+    pub fn optional_config<I, S>(&self, args: I) -> Result<Option<Vec<u8>>>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
@@ -42,7 +42,9 @@ impl Git {
         let out = platform::output(&mut cmd)?;
         if out.status.success() {
             Ok(Some(out.stdout))
-        } else if out.status.code() == Some(1) && out.stderr.is_empty() {
+        } else if out.status.code() == Some(1) {
+            // These config lookups use known-valid keys/patterns: 1 means no match,
+            // even when Git tracing writes diagnostics to stderr.
             Ok(None)
         } else {
             bail!(
@@ -54,13 +56,13 @@ impl Git {
     }
 
     pub fn value(&self, scope: &str, key: &str) -> Result<Option<String>> {
-        self.optional(["config", scope, "--includes", "--get", key])?
+        self.optional_config(["config", scope, "--includes", "--get", key])?
             .map(|b| platform::text(b).map(|s| s.trim_end_matches('\n').to_string()))
             .transpose()
     }
 
     pub fn values(&self, file: &Path, key: &str) -> Result<Vec<String>> {
-        let out = self.optional([
+        let out = self.optional_config([
             OsStr::new("config"),
             OsStr::new("--file"),
             file.as_os_str(),
@@ -114,7 +116,7 @@ impl Git {
     }
 
     pub fn global_values(&self, key: &str) -> Result<Vec<String>> {
-        split_values(self.optional([
+        split_values(self.optional_config([
             "config",
             "--global",
             "--includes",
@@ -130,7 +132,7 @@ impl Git {
         S: AsRef<OsStr>,
     {
         let mut values = BTreeMap::<String, Vec<String>>::new();
-        if let Some(bytes) = self.optional(args)? {
+        if let Some(bytes) = self.optional_config(args)? {
             for entry in platform::text(bytes)?.split_terminator('\0') {
                 let (key, value) = entry.split_once('\n').unwrap_or((entry, ""));
                 values.entry(key.into()).or_default().push(value.into());
@@ -140,7 +142,7 @@ impl Git {
     }
 
     pub fn hook_setting(&self) -> Result<Option<Setting>> {
-        let Some(bytes) = self.optional([
+        let Some(bytes) = self.optional_config([
             "config",
             "--includes",
             "--null",

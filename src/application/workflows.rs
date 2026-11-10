@@ -785,6 +785,111 @@ pub(super) fn enter(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> {
     enter_repository(inv, &repo, ui).map(|_| ())
 }
 
+enum AutoswitchState<'a> {
+    Checking,
+    Choosing { current: Option<&'a str> },
+    Switching(&'a Identity),
+}
+
+enum AutoswitchOutcome {
+    Unchanged(accounts::SelectedAccount),
+    Switched,
+}
+
+fn autoswitch(
+    inv: &Invocation,
+    repo: &Repository,
+    catalog: &Catalog,
+    allowed: &[&Identity],
+    ui: &mut dyn Interaction,
+    writes: &mut Writes,
+) -> Result<AutoswitchOutcome> {
+    let mut state = AutoswitchState::Checking;
+    loop {
+        state = match state {
+            AutoswitchState::Checking => {
+                let account = accounts::selected()?;
+                match (allowed, account) {
+                    ([target], Some(account))
+                        if account.login().eq_ignore_ascii_case(target.username()) =>
+                    {
+                        ui.progress(
+                            &format!("; {} is allowed, no switch needed.", target.name()),
+                            true,
+                        );
+                        return Ok(AutoswitchOutcome::Unchanged(account));
+                    }
+                    ([target], account) => {
+                        let name = selected_identity(catalog, account.as_ref());
+                        let status = if account.is_none() {
+                            name.to_string()
+                        } else {
+                            format!("{name} is not allowed")
+                        };
+                        ui.progress(
+                            &format!("; {status}, switching to {}...", target.name()),
+                            false,
+                        );
+                        AutoswitchState::Switching(target)
+                    }
+                    (_, account) => {
+                        let current = allowed.iter().find(|i| {
+                            account
+                                .as_ref()
+                                .is_some_and(|a| a.login().eq_ignore_ascii_case(i.username()))
+                        });
+                        let name = selected_identity(catalog, account.as_ref());
+                        let status = if account.is_none() {
+                            name.to_string()
+                        } else if current.is_some() {
+                            format!("{name} is allowed")
+                        } else {
+                            format!("{name} is not allowed")
+                        };
+                        ui.progress(&format!("; {status}, choose an allowed identity."), true);
+                        AutoswitchState::Choosing {
+                            current: current.map(|i| i.name()),
+                        }
+                    }
+                }
+            }
+            AutoswitchState::Choosing { current } => {
+                ensure!(
+                    ui.interactive(),
+                    "Multiple allowed identities require a terminal. Run: mgh switch <allowed-identity>"
+                );
+                let choices = allowed
+                    .iter()
+                    .map(|i| Choice {
+                        name: i.name().into(),
+                        username: i.username().into(),
+                    })
+                    .collect::<Vec<_>>();
+                let target = ui.active(&choices, current)?;
+                ui.progress(&format!("Autoswitch: switching to {target}..."), false);
+                let target = allowed
+                    .iter()
+                    .find(|i| i.name() == target)
+                    .context("Selected identity is not allowed")?;
+                AutoswitchState::Switching(target)
+            }
+            AutoswitchState::Switching(target) => {
+                switch_in_repository(
+                    inv,
+                    catalog,
+                    Some(repo),
+                    target.name(),
+                    SwitchKind::Automatic,
+                    ui,
+                    writes,
+                )?;
+                ui.progress(" done.", true);
+                return Ok(AutoswitchOutcome::Switched);
+            }
+        };
+    }
+}
+
 fn enter_repository(
     inv: &Invocation,
     repo: &Repository,
@@ -824,7 +929,6 @@ fn enter_repository(
             show_readiness(&readiness, true, ui);
         }
     }
-    let mut selected = false;
     if enabled && allowed.is_empty() {
         if let Err(e) = pick_permissions(repo, &catalog, ui) {
             ui.warning(&format!("{e:#}"));
@@ -835,91 +939,31 @@ fn enter_repository(
             return Ok(None);
         }
         allowed = repo.allowed(&catalog)?;
-        selected = true;
+        if !auto || allowed.is_empty() {
+            return Ok(None);
+        }
     }
-    let mut unchanged_account = None;
     if auto && !allowed.is_empty() {
-        selected = true;
         if progress_interrupted {
             ui.progress("Autoswitch: checking identity", false);
         }
-        let attempt = (|| {
-            let account = accounts::selected()?;
-            let current = allowed.iter().find(|i| {
-                account
-                    .as_ref()
-                    .is_some_and(|a| a.login().eq_ignore_ascii_case(i.username()))
-            });
-            let name = selected_identity(&catalog, account.as_ref());
-            if allowed.len() == 1 && current.is_some() {
-                ui.progress(&format!("; {name} is allowed, no switch needed."), true);
-                unchanged_account = account;
-                return Ok(());
-            }
-            let target = if allowed.len() == 1 {
-                let status = if account.is_none() {
-                    name.to_string()
+        return match autoswitch(inv, repo, &catalog, &allowed, ui, &mut writes) {
+            Ok(AutoswitchOutcome::Unchanged(account)) => Ok(Some(account)),
+            Ok(AutoswitchOutcome::Switched) => Ok(None),
+            Err(e) => {
+                if allowed.len() > 1 {
+                    ui.message(&format!("Autoswitch failed: {e:#}."), Meaning::Path);
                 } else {
-                    format!("{name} is not allowed")
-                };
-                ui.progress(
-                    &format!("; {status}, switching to {}...", allowed[0].name()),
-                    false,
-                );
-                allowed[0].name().to_string()
-            } else {
-                let status = if account.is_none() {
-                    name.to_string()
-                } else if current.is_some() {
-                    format!("{name} is allowed")
-                } else {
-                    format!("{name} is not allowed")
-                };
-                ui.progress(&format!("; {status}, choose an allowed identity."), true);
-                ensure!(
-                    ui.interactive(),
-                    "Multiple allowed identities require a terminal. Run: mgh switch <allowed-identity>"
-                );
-                let choices = allowed
-                    .iter()
-                    .map(|i| Choice {
-                        name: i.name().into(),
-                        username: i.username().into(),
-                    })
-                    .collect::<Vec<_>>();
-                let current = current.map(|i| i.name());
-                let target = ui.active(&choices, current)?;
-                ui.progress(&format!("Autoswitch: switching to {target}..."), false);
-                target
-            };
-            ensure!(
-                allowed.iter().any(|i| i.name() == target),
-                "Selected identity is not allowed"
-            );
-            switch_in_repository(
-                inv,
-                &catalog,
-                Some(repo),
-                &target,
-                SwitchKind::Automatic,
-                ui,
-                &mut writes,
-            )?;
-            ui.progress(" done.", true);
-            Ok(())
-        })();
-        if let Err(e) = attempt {
-            if allowed.len() > 1 {
-                ui.message(&format!("Autoswitch failed: {e:#}."), Meaning::Path);
-            } else {
-                ui.progress(&format!("; autoswitch failed: {e:#}."), true);
+                    ui.progress(&format!("; autoswitch failed: {e:#}."), true);
+                }
+                Ok(None)
             }
-        }
+        };
     }
-    if verbose && !selected {
+    if verbose {
         repo_report(repo, Some(&catalog), catalog.path(), ui)?;
     }
-    Ok(unchanged_account)
+    Ok(None)
 }
 
 pub(super) fn status(inv: &Invocation, full: bool, ui: &mut dyn Interaction) -> Result<()> {

@@ -288,6 +288,112 @@ fn multiple_autoswitch_always_prompts_and_cancel_preserves_state() {
     assert_eq!(env.accounts()["selected"], "alice");
 }
 
+/// Entry permission selection must suppress the fallback report and continue to autoswitch
+/// only when enabled, restarting progress after the permission picker.
+#[test]
+fn entry_permission_selection_continues_only_when_autoswitch_is_enabled() {
+    for auto in [false, true] {
+        let env = Sandbox::new();
+        env.init_repo();
+        env.setup_defaults();
+        if auto {
+            env.success(&["settings", "autoswitch", "on"]);
+        }
+        env.driver();
+        let o = env.pty(
+            env!("CARGO_BIN_EXE_mgh"),
+            &["internal", "enter"],
+            json!([["Which identities may use this repository?", "\u{1b}[B \r"]]),
+        );
+        assert_ok(&o);
+        let text = out(&o);
+        assert!(!text.contains("Current repository"), "{text}");
+        assert_eq!(
+            env.git_without_hooks(&["config", "--local", "mgh.allowed-identity"]),
+            "work"
+        );
+        assert_eq!(
+            env.accounts()["selected"],
+            if auto { "alice-work" } else { "alice" }
+        );
+        if auto {
+            assert!(text.contains("no allowed identities configured."), "{text}");
+            assert!(text.contains("switching to work... done."), "{text}");
+        } else {
+            assert!(!text.contains("Autoswitch:"), "{text}");
+        }
+    }
+}
+
+/// A failed checking stage must stop before choosing or switching and preserve account and
+/// Git settings, whether one or several identities are allowed.
+#[test]
+fn autoswitch_account_query_failure_preserves_state() {
+    for multiple in [false, true] {
+        let env = Sandbox::new();
+        env.init_repo();
+        env.setup_defaults();
+        env.success(&["repo", "allowed", "add", "work"]);
+        env.success(&["settings", "autoswitch", "on"]);
+        if multiple {
+            env.success(&["repo", "allowed", "add", "personal"]);
+        }
+        let local = bytes(env.repo.join(".git/config"));
+        let global = bytes(env.home.join(".gitconfig"));
+        let account = env.accounts();
+        let o = env
+            .mgh(&["internal", "enter"])
+            .env("MGH_SELECTED_FAIL", "1")
+            .output()
+            .unwrap();
+        assert_ok(&o);
+        let text = out(&o);
+        assert!(text.contains("selected query exploded"), "{text}");
+        assert!(!text.contains("choose an allowed identity"), "{text}");
+        assert!(!text.contains("switching to"), "{text}");
+        assert!(!text.contains("Current repository"), "{text}");
+        assert_eq!(bytes(env.repo.join(".git/config")), local);
+        assert_eq!(bytes(env.home.join(".gitconfig")), global);
+        assert_eq!(env.accounts(), account);
+    }
+}
+
+/// Startup may reuse the checked account only after an unchanged outcome; a switch or
+/// failed attempt must leave welcome to query the current account again.
+#[test]
+fn startup_reuses_account_only_when_autoswitch_leaves_it_unchanged() {
+    let env = Sandbox::new();
+    env.init_repo();
+    env.setup_defaults();
+    env.success(&["repo", "allowed", "add", "work"]);
+    env.success(&["settings", "autoswitch", "on"]);
+    env.success(&["settings", "welcome", "on"]);
+    for (current, fail, expected_queries, email) in [
+        ("work", false, 1, "work@example.com"),
+        ("personal", false, 2, "work@example.com"),
+        ("personal", true, 2, "Alice@example.com"),
+    ] {
+        env.success(&["switch", current]);
+        fs::write(env.root.join("gh.log"), "").unwrap();
+        let o = env
+            .mgh(&["internal", "startup"])
+            .env("MGH_SWITCH_FAIL", if fail { "1" } else { "" })
+            .output()
+            .unwrap();
+        assert_ok(&o);
+        let text = out(&o);
+        assert!(text.contains(email), "{text}");
+        assert_eq!(text.contains("autoswitch failed:"), fail, "{text}");
+        let log = fs::read_to_string(env.root.join("gh.log")).unwrap();
+        let queries = log
+            .lines()
+            .map(|line| serde_json::from_str::<Vec<String>>(line).unwrap())
+            .filter(|args| args.starts_with(&["config".into(), "get".into(), "user".into()]))
+            .count();
+        assert_eq!(queries, expected_queries, "{log}");
+    }
+}
+
 /// Welcome must explain permission and commit mismatches without changing account or Git
 /// settings.
 #[test]

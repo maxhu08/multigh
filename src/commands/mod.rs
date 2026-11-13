@@ -1,5 +1,5 @@
 use crate::{
-    application::{IdentityFields, Interaction, Invocation, Preference, ShellKind},
+    application::{Autoswitch, IdentityFields, Interaction, Invocation, Preference, ShellKind},
     cli::*,
 };
 use anyhow::Result;
@@ -46,22 +46,23 @@ pub fn run(cli: Cli, ui: &mut dyn Interaction) -> Result<i32> {
         }
         Command::Settings { command } => match command {
             None => invocation.show_preferences(None, ui)?,
-            Some(command) => {
-                let (pref, state) = match command {
-                    SettingsCommand::Autoswitch { state } => (Preference::Autoswitch, state),
-                    SettingsCommand::Verbose { state } => (Preference::Verbose, state),
-                    SettingsCommand::Welcome { state } => (Preference::Welcome, state),
-                };
-                if let Some(state) = state {
-                    invocation.set_preference(pref, state.enabled(), ui)?;
-                } else {
-                    invocation.show_preferences(Some(pref), ui)?;
-                }
+            Some(SettingsCommand::Autoswitch { mode }) => match mode {
+                Some(mode) => invocation.set_autoswitch(mode.into(), ui)?,
+                None => invocation.show_autoswitch(ui)?,
+            },
+            Some(SettingsCommand::Verbose { state }) => {
+                preference(&invocation, Preference::Verbose, state, ui)?
+            }
+            Some(SettingsCommand::Welcome { state }) => {
+                preference(&invocation, Preference::Welcome, state, ui)?
             }
         },
         Command::Internal { command } => match command {
             InternalCommand::Startup => invocation.startup(ui)?,
             InternalCommand::Enter => invocation.enter_repository(ui)?,
+            InternalCommand::ShellEnter { startup } => invocation.shell_entry(startup, ui)?,
+            InternalCommand::Poll => invocation.poll_background(ui)?,
+            InternalCommand::Worker { request } => invocation.background_worker(request)?,
             InternalCommand::Welcome => invocation.welcome(ui)?,
             InternalCommand::Hook { name, args } => invocation.handle_hook(&name, &args, ui)?,
             InternalCommand::Git { args } => return invocation.forward_git(&args, ui),
@@ -83,12 +84,34 @@ pub fn run(cli: Cli, ui: &mut dyn Interaction) -> Result<i32> {
     Ok(0)
 }
 
+fn preference(
+    invocation: &Invocation,
+    pref: Preference,
+    state: Option<OnOff>,
+    ui: &mut dyn Interaction,
+) -> Result<()> {
+    match state {
+        Some(state) => invocation.set_preference(pref, state.enabled(), ui),
+        None => invocation.show_preferences(Some(pref), ui),
+    }
+}
+
 impl From<Fields> for IdentityFields {
     fn from(fields: Fields) -> Self {
         Self {
             username: fields.username,
             email: fields.email,
             name: fields.name,
+        }
+    }
+}
+
+impl From<AutoswitchMode> for Autoswitch {
+    fn from(mode: AutoswitchMode) -> Self {
+        match mode {
+            AutoswitchMode::Off => Self::Off,
+            AutoswitchMode::Foreground => Self::Foreground,
+            AutoswitchMode::Background => Self::Background,
         }
     }
 }

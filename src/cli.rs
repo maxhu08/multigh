@@ -107,8 +107,8 @@ pub enum Command {
     /// Read/change independent global preferences (initially OFF)
     #[command(
         after_help = concat!(
-            "All preferences are global and independent. Autoswitch, verbose and welcome initially ",
-            "default OFF; first completed setup enables verbose once. Omitted states display the ",
+            "Autoswitch initially defaults OFF and supports foreground/background modes. Verbose ",
+            "and welcome initially default OFF; first completed setup enables verbose once. Omitted states display the ",
             "value. Settings survive later entry failures and subsequent setup.",
         )
     )]
@@ -291,16 +291,20 @@ pub enum AllowedCommand {
 
 #[derive(Subcommand, Debug)]
 pub enum SettingsCommand {
-    /// Global automatic selection of allowed identities; enabling also enters the current repository
+    /// Choose off, foreground or background automatic identity switching
     #[command(
         after_help = concat!(
-            "Global scope, initially OFF. Enabling saves ON before entering the current ",
-            "repository; that preference survives entry failure. Only permitted identities are ",
-            "considered. One already selected account is a no-op; multiple choices always require ",
-            "a terminal. Use mgh switch <allowed-identity> for manual recovery.",
+            "Global scope, initially OFF. Foreground waits for switching. Background checks the ",
+            "local selected account immediately, then switches without blocking entry. Success is ",
+            "silent afterward; failures identify their repository at a later prompt. Busy entry ",
+            "queues without claiming the current identity is allowed. Latest pending entry wins; ",
+            "manual switching overrides older requests, and integrated Git waits for switching. ",
+            "Multiple choices need mgh switch <allowed-identity>. The alias 'on' means ",
+            "foreground. Enabling saves the mode before entering the current repository; it ",
+            "survives entry failure. Direct gh commands and unwrapped Git bypass coordination.",
         )
     )]
-    Autoswitch { state: Option<OnOff> },
+    Autoswitch { mode: Option<AutoswitchMode> },
     /// Global informational entry reports
     #[command(
         after_help = concat!(
@@ -319,6 +323,14 @@ pub enum SettingsCommand {
         )
     )]
     Welcome { state: Option<OnOff> },
+}
+
+#[derive(ValueEnum, Clone, Copy, Debug)]
+pub enum AutoswitchMode {
+    Off,
+    #[value(alias = "on")]
+    Foreground,
+    Background,
 }
 
 #[derive(ValueEnum, Clone, Copy, Debug)]
@@ -367,6 +379,14 @@ pub enum ShellCommand {
 pub enum InternalCommand {
     Startup,
     Enter,
+    ShellEnter {
+        #[arg(long)]
+        startup: bool,
+    },
+    Poll,
+    Worker {
+        request: u64,
+    },
     Welcome,
     Hook {
         name: String,

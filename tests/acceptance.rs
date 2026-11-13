@@ -28,5 +28,8 @@ mod push;
 #[path = "cases/shell.rs"]
 mod shell;
 
+#[path = "cases/background.rs"]
+mod background;
+
 #[path = "cases/presentation.rs"]
 mod presentation;

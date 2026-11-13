@@ -42,6 +42,7 @@ These are regression tests for the actual executable. Each case starts with an i
 | `hooks` | Commit checks, existing-hook forwarding, repairs and clone permissions. |
 | `push` | Outgoing history, tags, multiple refs and rejected local-remote updates. |
 | `shell` | Actual Fish/Bash/Zsh startup, directory changes, completion and `git init`. |
+| `background` | Paused-worker ordering, manual overrides, Git exclusion, crash recovery and responsive shell prompts. |
 | `presentation` | Spacing, alignment, colors, arrows, stream handling and terminal requirements. |
 
 Git and shells are real; GitHub authentication and browser login are simulated. `Sandbox::git_without_hooks` and `commit_without_hooks` only prepare fixtures; enforcement checks use native Git or the production hook entry points. These controlled tests do not establish reliability across real-world environments.

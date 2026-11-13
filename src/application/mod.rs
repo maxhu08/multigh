@@ -1,4 +1,5 @@
 mod accounts;
+mod background;
 mod identities;
 mod platform;
 mod preferences;
@@ -7,7 +8,7 @@ mod shell;
 mod workflows;
 
 use anyhow::Result;
-pub use preferences::Preference;
+pub use preferences::{Autoswitch, Preference};
 pub enum ShellKind {
     Fish,
     Bash,
@@ -125,6 +126,7 @@ impl Invocation {
     }
 
     pub fn setup(&self, ui: &mut dyn Interaction) -> Result<()> {
+        let _guard = background::mutation(false)?;
         workflows::setup(self, ui)
     }
 
@@ -134,6 +136,7 @@ impl Invocation {
         fields: IdentityFields,
         ui: &mut dyn Interaction,
     ) -> Result<()> {
+        let _guard = background::mutation(true)?;
         workflows::create(self, name, fields, ui)
     }
 
@@ -143,10 +146,12 @@ impl Invocation {
         fields: IdentityFields,
         ui: &mut dyn Interaction,
     ) -> Result<()> {
+        let _guard = background::mutation(false)?;
         workflows::edit(self, name, fields, ui)
     }
 
     pub fn remove_identity(&self, name: &str, ui: &mut dyn Interaction) -> Result<()> {
+        let _guard = background::mutation(false)?;
         workflows::remove(self, name, ui)
     }
 
@@ -155,6 +160,7 @@ impl Invocation {
     }
 
     pub fn switch_identity(&self, name: &str, ui: &mut dyn Interaction) -> Result<()> {
+        let _guard = background::mutation(true)?;
         workflows::switch(self, name, ui)
     }
 
@@ -180,18 +186,48 @@ impl Invocation {
         ui: &mut dyn Interaction,
     ) -> Result<()> {
         preferences::set(pref, on)?;
-        workflows::show_preferences(Some(pref), ui)?;
-        if matches!(pref, Preference::Autoswitch) && on {
-            self.enter_repository(ui)?;
+        workflows::show_preferences(Some(pref), ui)
+    }
+
+    pub fn show_autoswitch(&self, ui: &mut dyn Interaction) -> Result<()> {
+        workflows::show_autoswitch(ui)
+    }
+
+    pub fn set_autoswitch(&self, mode: Autoswitch, ui: &mut dyn Interaction) -> Result<()> {
+        preferences::set_autoswitch(mode)?;
+        background::cancel()?;
+        self.show_autoswitch(ui)?;
+        if mode.enabled() {
+            self.shell_entry(false, ui)?;
         }
         Ok(())
     }
 
     pub fn enter_repository(&self, ui: &mut dyn Interaction) -> Result<()> {
+        let _guard = background::mutation(false)?;
         workflows::enter(self, ui)
     }
 
+    pub fn shell_entry(&self, startup: bool, ui: &mut dyn Interaction) -> Result<()> {
+        if preferences::autoswitch()? == Autoswitch::Background {
+            background::enter(self, startup, ui)
+        } else if startup {
+            self.startup(ui)
+        } else {
+            self.enter_repository(ui)
+        }
+    }
+
+    pub fn poll_background(&self, ui: &mut dyn Interaction) -> Result<()> {
+        background::poll(ui)
+    }
+
+    pub fn background_worker(&self, request: u64) -> Result<()> {
+        background::worker(self, request)
+    }
+
     pub fn status(&self, full: bool, ui: &mut dyn Interaction) -> Result<()> {
+        let _guard = background::guard(false, true)?;
         workflows::status(self, full, ui)
     }
 
@@ -200,6 +236,7 @@ impl Invocation {
     }
 
     pub fn startup(&self, ui: &mut dyn Interaction) -> Result<()> {
+        let _guard = background::mutation(false)?;
         workflows::startup(self, ui)
     }
 
@@ -217,12 +254,19 @@ impl Invocation {
             repositories::HOOK_NAMES.contains(&name),
             "Unknown Git hook: {name}"
         );
+        let _guard = background::guard(false, false)?;
         repositories::hook(
             name,
             args,
             &|| self.path(),
             &accounts::AccountQueries::default(),
-            &mut || self.enter_repository(ui),
+            &mut || {
+                if preferences::autoswitch()? == Autoswitch::Background {
+                    background::enter(self, false, ui)
+                } else {
+                    workflows::enter(self, ui)
+                }
+            },
         )
     }
 
@@ -242,11 +286,13 @@ pub struct RepositoryActions<'a> {
 
 impl RepositoryActions<'_> {
     pub fn status(&self, ui: &mut dyn Interaction) -> Result<()> {
+        let _guard = background::guard(false, true)?;
         let catalog = self.invocation.catalog(false)?;
         workflows::repo_status(&self.repo, &catalog, ui)
     }
 
     pub fn check(&self) -> Result<()> {
+        let _guard = background::guard(false, true)?;
         self.repo.commit_check(
             &self.invocation.catalog(false)?,
             &accounts::AccountQueries::default(),
@@ -254,6 +300,7 @@ impl RepositoryActions<'_> {
     }
 
     pub fn protections(&self, state: Option<bool>, ui: &mut dyn Interaction) -> Result<()> {
+        let _guard = background::mutation(false)?;
         match state {
             Some(false) => self.repo.disable()?,
             Some(true) => {
@@ -299,6 +346,7 @@ impl RepositoryActions<'_> {
     }
 
     pub fn add_allowed(&self, name: &str, ui: &mut dyn Interaction) -> Result<()> {
+        let _guard = background::mutation(false)?;
         let catalog = self.invocation.catalog(false)?;
         let target = catalog.resolve(&identities::IdentitySelector::new(name))?;
         let mut names = self
@@ -315,6 +363,7 @@ impl RepositoryActions<'_> {
     }
 
     pub fn remove_allowed(&self, name: &str, ui: &mut dyn Interaction) -> Result<()> {
+        let _guard = background::mutation(false)?;
         let catalog = self.invocation.catalog(false).ok();
         let selected = accounts::selected()?;
         self.repo
@@ -323,6 +372,7 @@ impl RepositoryActions<'_> {
     }
 
     pub fn update_allowed(&self, ui: &mut dyn Interaction) -> Result<()> {
+        let _guard = background::mutation(false)?;
         let catalog = self.invocation.catalog(false)?;
         workflows::pick_permissions(&self.repo, &catalog, ui)?;
         self.list_allowed(ui)

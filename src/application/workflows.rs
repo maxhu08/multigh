@@ -601,14 +601,33 @@ pub(super) fn show_preferences(pref: Option<Preference>, ui: &mut dyn Interactio
 }
 
 fn preference_rows(pref: Option<Preference>, ui: &mut dyn Interaction) -> Result<()> {
-    let all = [
-        Preference::Autoswitch,
-        Preference::Verbose,
-        Preference::Welcome,
-    ];
+    if pref.is_none() {
+        autoswitch_row("Autoswitch", ui)?;
+    }
+    let all = [Preference::Verbose, Preference::Welcome];
     for preference in pref.as_ref().map(std::slice::from_ref).unwrap_or(&all) {
         ui.on_off(preference.name(), preferences::get(*preference)?);
     }
+    Ok(())
+}
+
+pub(super) fn show_autoswitch(ui: &mut dyn Interaction) -> Result<()> {
+    ui.heading("Global settings");
+    autoswitch_row("Autoswitch", ui)
+}
+
+fn autoswitch_row(label: &str, ui: &mut dyn Interaction) -> Result<()> {
+    let mode = preferences::autoswitch()?;
+    ui.row(
+        label,
+        &mode.name().to_ascii_uppercase(),
+        if mode.enabled() {
+            Meaning::Success
+        } else {
+            Meaning::Error
+        },
+        false,
+    );
     Ok(())
 }
 
@@ -676,10 +695,7 @@ pub(super) fn repo_report(
     ui: &mut dyn Interaction,
 ) -> Result<()> {
     repo_details(repo, catalog, config, ui)?;
-    ui.on_off(
-        "Autoswitch (global)",
-        preferences::get(Preference::Autoswitch)?,
-    );
+    autoswitch_row("Autoswitch (global)", ui)?;
     Ok(())
 }
 
@@ -782,7 +798,96 @@ pub(super) fn enter(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> {
     let Some(repo) = Repository::discover()? else {
         return Ok(());
     };
-    enter_repository(inv, &repo, ui).map(|_| ())
+    enter_repository(inv, &repo, ui, Entry::Foreground).map(|_| ())
+}
+
+enum Entry {
+    Foreground,
+    Background(background::Work),
+}
+
+pub(super) fn enter_background(
+    inv: &Invocation,
+    work: background::Work,
+    ui: &mut dyn Interaction,
+) -> Result<()> {
+    let Some(repo) = Repository::discover()? else {
+        return Ok(());
+    };
+    enter_repository(inv, &repo, ui, Entry::Background(work)).map(|_| ())
+}
+
+fn account_status(
+    catalog: &Catalog,
+    allowed: &[&Identity],
+    account: Option<&accounts::SelectedAccount>,
+) -> String {
+    let name = selected_identity(catalog, account);
+    if account.is_none() {
+        name.into()
+    } else if allowed
+        .iter()
+        .any(|i| account.is_some_and(|a| a.login().eq_ignore_ascii_case(i.username())))
+    {
+        format!("{name} is allowed")
+    } else {
+        format!("{name} is not allowed")
+    }
+}
+
+pub(super) fn background_check(
+    inv: &Invocation,
+    repo: &Repository,
+    idle: bool,
+    ui: &mut dyn Interaction,
+) -> Result<background::Work> {
+    let catalog = inv.catalog(false)?;
+    let allowed = repo.allowed(&catalog)?;
+    if !idle {
+        let action = match allowed.as_slice() {
+            [target] => format!("; switching to {} in background...", target.name()),
+            _ => "; switching in background...".into(),
+        };
+        ui.progress(&action, true);
+        return Ok(background::Work::Autoswitch);
+    }
+    if allowed.is_empty() {
+        ui.progress(
+            "; no allowed identities configured. Run: mgh repo allowed update",
+            true,
+        );
+        return Ok(background::Work::Maintenance);
+    }
+    let account = accounts::selected()?;
+    let status = account_status(&catalog, &allowed, account.as_ref());
+    match allowed.as_slice() {
+        [target]
+            if account
+                .as_ref()
+                .is_some_and(|a| a.login().eq_ignore_ascii_case(target.username())) =>
+        {
+            ui.progress(&format!("; {status}, no switch needed."), true);
+        }
+        [target] => {
+            ui.progress(
+                &format!(
+                    "; {status}, switching to {} in background...",
+                    target.name()
+                ),
+                true,
+            );
+        }
+        _ => {
+            ui.progress(
+                &format!(
+                    "; {status}, choose an allowed identity. Run: mgh switch <allowed-identity>"
+                ),
+                true,
+            );
+            return Ok(background::Work::Maintenance);
+        }
+    }
+    Ok(background::Work::Autoswitch)
 }
 
 enum AutoswitchState<'a> {
@@ -820,12 +925,7 @@ fn autoswitch(
                         return Ok(AutoswitchOutcome::Unchanged(account));
                     }
                     ([target], account) => {
-                        let name = selected_identity(catalog, account.as_ref());
-                        let status = if account.is_none() {
-                            name.to_string()
-                        } else {
-                            format!("{name} is not allowed")
-                        };
+                        let status = account_status(catalog, allowed, account.as_ref());
                         ui.progress(
                             &format!("; {status}, switching to {}...", target.name()),
                             false,
@@ -838,14 +938,7 @@ fn autoswitch(
                                 .as_ref()
                                 .is_some_and(|a| a.login().eq_ignore_ascii_case(i.username()))
                         });
-                        let name = selected_identity(catalog, account.as_ref());
-                        let status = if account.is_none() {
-                            name.to_string()
-                        } else if current.is_some() {
-                            format!("{name} is allowed")
-                        } else {
-                            format!("{name} is not allowed")
-                        };
+                        let status = account_status(catalog, allowed, account.as_ref());
                         ui.progress(&format!("; {status}, choose an allowed identity."), true);
                         AutoswitchState::Choosing {
                             current: current.map(|i| i.name()),
@@ -894,9 +987,10 @@ fn enter_repository(
     inv: &Invocation,
     repo: &Repository,
     ui: &mut dyn Interaction,
+    entry: Entry,
 ) -> Result<Option<accounts::SelectedAccount>> {
     let enabled = repo.protections()?;
-    let auto = preferences::get(Preference::Autoswitch)?;
+    let auto = preferences::autoswitch()?.enabled();
     let verbose = preferences::get(Preference::Verbose)?;
     if !enabled && !auto && !verbose {
         return Ok(None);
@@ -928,6 +1022,21 @@ fn enter_repository(
             }
             show_readiness(&readiness, true, ui);
         }
+    }
+    if matches!(entry, Entry::Background(background::Work::Maintenance)) {
+        return Ok(None);
+    }
+    if matches!(entry, Entry::Background(_)) {
+        ensure!(
+            !allowed.is_empty(),
+            "No identities selected. Run: mgh repo allowed update"
+        );
+        return autoswitch(inv, repo, &catalog, &allowed, ui, &mut writes).map(|outcome| {
+            match outcome {
+                AutoswitchOutcome::Unchanged(account) => Some(account),
+                AutoswitchOutcome::Switched => None,
+            }
+        });
     }
     if enabled && allowed.is_empty() {
         if let Err(e) = pick_permissions(repo, &catalog, ui) {
@@ -1023,7 +1132,7 @@ pub(super) fn status(inv: &Invocation, full: bool, ui: &mut dyn Interaction) -> 
 pub(super) fn startup(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> {
     let repo = Repository::discover()?;
     let unchanged_account = match &repo {
-        Some(repo) => enter_repository(inv, repo, ui)?,
+        Some(repo) => enter_repository(inv, repo, ui, Entry::Foreground)?,
         None => None,
     };
     if preferences::get(Preference::Welcome)? {

@@ -2,6 +2,7 @@
 if status is-interactive
     if not set -q _MGH_FISH_LOADED
         set -g _MGH_FISH_LOADED 1
+        set -gx MGH_SHELL_SESSION "$fish_pid-"(random)"-"(random)
         mgh shell completions fish | source
         function _mgh_enter --on-variable PWD
             if not set -q _MGH_LAST_PWD; or test "$_MGH_LAST_PWD" != "$PWD"
@@ -9,11 +10,12 @@ if status is-interactive
                 set -l _mgh_repo (command git rev-parse --absolute-git-dir 2>/dev/null)
                 if not set -q _MGH_LAST_REPO; or test "$_MGH_LAST_REPO" != "$_mgh_repo"
                     set -g _MGH_LAST_REPO "$_mgh_repo"
-                    if test -n "$_mgh_repo"
-                        mgh internal enter </dev/tty
-                    end
+                    mgh internal shell-enter </dev/tty
                 end
             end
+        end
+        function _mgh_poll --on-event fish_prompt
+            mgh internal poll
         end
         if not functions -q git
             function git
@@ -24,7 +26,7 @@ if status is-interactive
             functions --erase _mgh_startup
             set -g _MGH_LAST_PWD "$PWD"
             set -g _MGH_LAST_REPO (command git rev-parse --absolute-git-dir 2>/dev/null)
-            mgh internal startup </dev/tty
+            mgh internal shell-enter --startup </dev/tty
         end
     end
 end

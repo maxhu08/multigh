@@ -3,7 +3,6 @@ use anyhow::{Context, Result};
 use std::{fs, io, path::PathBuf};
 #[derive(Clone, Copy)]
 pub enum Preference {
-    Autoswitch,
     Verbose,
     Welcome,
 }
@@ -11,7 +10,6 @@ pub enum Preference {
 impl Preference {
     pub fn name(self) -> &'static str {
         match self {
-            Self::Autoswitch => "Autoswitch",
             Self::Verbose => "Verbose",
             Self::Welcome => "Welcome",
         }
@@ -19,11 +17,54 @@ impl Preference {
 
     fn marker(self) -> &'static str {
         match self {
-            Self::Autoswitch => "autoswitch-enabled",
             Self::Verbose => "verbose-enabled",
             Self::Welcome => "welcome-enabled",
         }
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Autoswitch {
+    Off,
+    Foreground,
+    Background,
+}
+
+impl Autoswitch {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Foreground => "foreground",
+            Self::Background => "background",
+        }
+    }
+
+    pub fn enabled(self) -> bool {
+        self != Self::Off
+    }
+}
+
+pub(super) fn autoswitch() -> Result<Autoswitch> {
+    let path = state()?.join("autoswitch-mode");
+    match fs::read_to_string(&path) {
+        Ok(value) => match value.trim() {
+            "off" => Ok(Autoswitch::Off),
+            "foreground" => Ok(Autoswitch::Foreground),
+            "background" => Ok(Autoswitch::Background),
+            value => anyhow::bail!("Invalid autoswitch mode '{value}' in {}", path.display()),
+        },
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(Autoswitch::Off),
+        Err(e) => Err(e).with_context(|| format!("Cannot read {}", path.display())),
+    }
+}
+
+pub(super) fn set_autoswitch(mode: Autoswitch) -> Result<()> {
+    platform::write_private(
+        &state()?.join("autoswitch-mode"),
+        format!("{}\n", mode.name()).as_bytes(),
+        false,
+    )?;
+    Ok(())
 }
 
 pub(super) fn state() -> Result<PathBuf> {

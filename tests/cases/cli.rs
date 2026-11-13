@@ -68,6 +68,8 @@ fn cli_surface_config_independence_and_rejections() {
         vec!["repo", "autoswitch"],
         vec!["repo", "allowed", "update", "personal"],
         vec!["settings", "verbose", "yes"],
+        vec!["settings", "background", "on"],
+        vec!["settings", "autoswitch", "instant"],
         vec!["shell", "init", "elvish"],
     ] {
         let o = env.run(&args);

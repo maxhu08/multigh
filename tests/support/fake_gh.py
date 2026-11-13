@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import json
 import os
+import signal
 import sys
+import time
 
 args = sys.argv[1:]
 with open(os.environ['MGH_GH_LOG'], 'a') as f:
@@ -82,6 +84,19 @@ if args[:2] == ['auth', 'login']:
         os.unlink(os.environ['MGH_DELETE_CONFIG'])
     sys.exit(0)
 if args[:2] == ['auth', 'switch']:
+    gate = os.getenv('MGH_SWITCH_GATE')
+    if gate:
+        open(gate + '.started', 'w').close()
+        if os.getenv('MGH_SWITCH_CRASH'):
+            os.kill(os.getppid(), signal.SIGTERM)
+            sys.exit(2)
+        deadline = time.monotonic() + 15
+        while not os.path.exists(gate + '.release'):
+            if time.monotonic() > deadline:
+                open(gate + '.timed-out', 'w').close()
+                print('test switch gate timed out', file=sys.stderr)
+                sys.exit(2)
+            time.sleep(0.01)
     if os.getenv('MGH_SELECTED_EXPECT_OUTPUT'):
         with open(os.environ['MGH_SELECTED_EXPECT_OUTPUT']) as f:
             if 'personal is not allowed, switching to work...' not in f.read():

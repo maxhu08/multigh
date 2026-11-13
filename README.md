@@ -4,7 +4,7 @@
 
 This is a small personal utility, put together quickly. It has automated regression tests, but has not been rigorously tested across real-world environments or varied setups.
 
-Requires Git 2.45+ and GitHub CLI. Installation requires a Rust toolchain; interactive shell integration supports Fish, Bash and Zsh on Unix.
+Requires Git 2.45+ and GitHub CLI. Installation requires Rust 1.89+; interactive shell integration supports Fish, Bash and Zsh on Unix.
 
 ## Getting started
 
@@ -56,7 +56,8 @@ Use Space to select identities and Enter to save; Esc or Ctrl+C cancels. Enterin
 | `mgh switch <identity>` | Switch GitHub accounts and global commit defaults; update local details only if allowed here. |
 | `mgh identity [list\|new\|edit\|remove]` | Manage global identity definitions. |
 | `mgh repo [status\|check\|allowed\|protections]` | Inspect or change this repository's permissions and protections. |
-| `mgh settings [autoswitch\|verbose\|welcome] [on\|off]` | Show or change global preferences. |
+| `mgh settings autoswitch [off\|foreground\|background]` | Show or change automatic switching mode. |
+| `mgh settings [verbose\|welcome] [on\|off]` | Show or change informational preferences; no arguments shows all settings. |
 | `mgh doctor` | Diagnose tools, configuration, authentication and hooks without changing them. |
 | `mgh shell <init\|completions> <shell>` | Print shell integration or completion definitions. |
 
@@ -78,10 +79,12 @@ Protections default to ON after integration is installed. A repository with no a
 mgh repo allowed add work
 mgh repo protections off       # Disable protections only in this repository.
 mgh repo protections on        # Repair integration and re-enable checks.
-mgh settings autoswitch on     # Enable automatic selection across repositories.
+mgh settings autoswitch background  # Enable nonblocking automatic switching.
 ```
 
-Autoswitch is OFF by default. It selects the sole allowed identity, or prompts when several are allowed. When entering a different Git repository, one gray sentence immediately shows progress and reports whether the current identity is allowed or needs to switch. Moving between directories within the same repository stays silent. This feedback appears even when verbose reports are OFF. GitHub's active account is shared across terminals. Verbose entry reports turn on after the first completed setup; the welcome greeting defaults to OFF. Shell integration displays the greeting when enabled.
+Autoswitch defaults to `off`. `foreground` selects the sole allowed identity, or prompts when several are allowed, and waits for switching to finish. `background` checks permissions immediately and switches without blocking the prompt; multiple choices require `mgh switch <identity>`, and only failures are reported afterward. Moving within the same repository stays silent. Entry feedback appears even when verbose reports are OFF.
+
+GitHub's active account is shared across terminals. Integrated Git waits for background switching; direct `gh` commands and unwrapped Git bypass coordination. Verbose entry reports turn on after the first completed setup; the welcome greeting defaults to OFF.
 
 Existing project hooks continue to run. Custom global hook paths require manual integration; setup reports them instead of replacing them. Push checks also reject outgoing commits attributed to your other disallowed configured identities. These are local safeguards: tools that bypass Git hooks can bypass the checks.
 

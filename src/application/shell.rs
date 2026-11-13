@@ -9,10 +9,13 @@ pub(super) fn forward(
     args: &[OsString],
     ui: &mut dyn Interaction,
 ) -> Result<i32> {
-    let status = Command::new("git")
-        .args(args)
-        .status()
-        .context("Cannot execute git")?;
+    let status = {
+        let guard = background::guard(false, true)?;
+        let mut command = Command::new("git");
+        command.args(args);
+        guard.command(&mut command);
+        command.status().context("Cannot execute git")?
+    };
     if !status.success() {
         return Ok(status.code().unwrap_or(1));
     }

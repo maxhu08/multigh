@@ -33,7 +33,10 @@ fn entry_all_off_and_noninteractive_guidance_and_partial_preferences() {
     assert!(out(&o).contains("mgh switch <allowed-identity>"));
     env.set_local("mgh.allowed-identity", "stale");
     env.rejects(&["settings", "autoswitch", "on"], "Unknown identity");
-    assert!(env.state.join("autoswitch-enabled").exists());
+    assert_eq!(
+        fs::read_to_string(env.state.join("autoswitch-mode")).unwrap(),
+        "foreground\n"
+    );
 }
 
 /// The terminal checklist must require a selection, scroll and offer only allowed autoswitch

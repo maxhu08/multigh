@@ -2,6 +2,7 @@
 if [[ $- == *i* ]]; then
     if [[ -z ${_MGH_BASH_LOADED:-} ]]; then
         _MGH_BASH_LOADED=1
+        export MGH_SHELL_SESSION="$$-$RANDOM-$RANDOM"
         eval "$(mgh shell completions bash)"
         _mgh_enter() {
             if [[ ${_MGH_LAST_PWD:-} != "$PWD" ]]; then
@@ -10,11 +11,10 @@ if [[ $- == *i* ]]; then
                 _mgh_repo=$(command git rev-parse --absolute-git-dir 2>/dev/null)
                 if [[ ${_MGH_LAST_REPO:-} != "$_mgh_repo" ]]; then
                     _MGH_LAST_REPO=$_mgh_repo
-                    if [[ -n $_mgh_repo ]]; then
-                        mgh internal enter
-                    fi
+                    mgh internal shell-enter
                 fi
             fi
+            mgh internal poll
         }
         if ! declare -F git >/dev/null && ! alias git >/dev/null 2>&1; then
             function git { mgh internal git -- "$@"; }
@@ -44,6 +44,6 @@ if [[ $- == *i* ]]; then
         fi
         _MGH_LAST_PWD=$PWD
         _MGH_LAST_REPO=$(command git rev-parse --absolute-git-dir 2>/dev/null)
-        mgh internal startup
+        mgh internal shell-enter --startup
     fi
 fi

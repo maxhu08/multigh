@@ -338,7 +338,9 @@ fn enqueue(inv: &Invocation, queue: &mut QueueLock, work: Work, repository: &Pat
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        command.creation_flags(0x00000008 | 0x00000200); // DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+        // Give Git and gh a hidden console to inherit instead of opening their own.
+        command.creation_flags(platform::CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP);
     }
     let mut child = command.spawn().context("Cannot launch background worker")?;
     let mut ready = String::new();

@@ -161,5 +161,5 @@ pub(super) fn full() -> Result<Output> {
         // would have emitted with the original terminal streams.
         cmd.env("CLICOLOR_FORCE", "1");
     }
-    cmd.output().context("Cannot execute gh auth status")
+    platform::output(&mut cmd)
 }

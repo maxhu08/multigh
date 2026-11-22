@@ -1,5 +1,24 @@
 //! Native test double so Windows exercises the same executable lookup as real `gh`.
-use std::{env, fs, path::PathBuf, process, thread, time::Duration};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+    process, thread,
+    time::Duration,
+};
+
+#[link(name = "kernel32")]
+unsafe extern "system" {
+    fn GetConsoleProcessList(processes: *mut u32, capacity: u32) -> u32;
+    fn GetConsoleWindow() -> *mut std::ffi::c_void;
+}
+
+fn record_console(path: &Path) {
+    let mut pids = [0; 2];
+    // This reports the required size even if the console has more than two processes.
+    let count = unsafe { GetConsoleProcessList(pids.as_mut_ptr(), pids.len() as u32) };
+    let has_window = !unsafe { GetConsoleWindow() }.is_null();
+    fs::write(path, format!("{count} {has_window}")).unwrap();
+}
 
 fn main() {
     let state = PathBuf::from(env::var_os("MGH_TEST_AUTH").unwrap());
@@ -10,6 +29,12 @@ fn main() {
         ["--version"] => println!("gh version 2.99.0"),
         ["config", "get", "user", ..] => println!("{selected}"),
         ["auth", "status", ..] => {
+            let report = if args.contains(&"--json") {
+                "status-console"
+            } else {
+                "full-status-console"
+            };
+            record_console(&state.join(report));
             println!(
                 r#"{{"hosts":{{"github.com":[{{"login":"alice","active":{},"state":"success"}},{{"login":"alice-work","active":{},"state":"success"}}]}}}}"#,
                 selected == "alice",
@@ -19,6 +44,7 @@ fn main() {
         ["auth", "switch", "--hostname", "github.com", "--user", target] => {
             let gate = state.join("pause-switch");
             if gate.exists() {
+                record_console(&state.join("switch-console"));
                 fs::write(state.join("switch-started"), "").unwrap();
                 for _ in 0..1500 {
                     if !gate.exists() {

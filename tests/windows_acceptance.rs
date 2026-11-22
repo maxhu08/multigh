@@ -7,6 +7,7 @@ use std::{
     ffi::{OsStr, OsString},
     fs,
     io::{Read, Write},
+    os::windows::process::CommandExt,
     path::{Path, PathBuf},
     process::{Command, Output},
     sync::mpsc,
@@ -18,6 +19,14 @@ use tempfile::TempDir;
 const MGH: &str = env!("CARGO_BIN_EXE_mgh");
 const INIT: &str = ". ([ScriptBlock]::Create((mgh shell init powershell | Out-String)))";
 const TIMEOUT: Duration = Duration::from_secs(25);
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+const DETACHED_PROCESS: u32 = 0x00000008;
+
+fn headless_command(program: impl AsRef<OsStr>) -> Command {
+    let mut command = Command::new(program);
+    command.creation_flags(CREATE_NO_WINDOW);
+    command
+}
 
 struct Sandbox {
     root: TempDir,
@@ -34,7 +43,7 @@ impl Sandbox {
             .tempdir()
             .unwrap();
         checked(
-            &Command::new(env::var_os("RUSTC").unwrap_or_else(|| "rustc".into()))
+            &headless_command(env::var_os("RUSTC").unwrap_or_else(|| "rustc".into()))
                 .arg("tests/support/fake_gh_windows.rs")
                 .arg("-o")
                 .arg(root.path().join("gh.exe"))
@@ -81,7 +90,7 @@ impl Sandbox {
     }
 
     fn command(&self, program: &str) -> Command {
-        let mut command = Command::new(program);
+        let mut command = headless_command(program);
         command
             .env_remove("GIT_CONFIG_PARAMETERS")
             .env_remove("MGH_EXECUTION_CONTEXT")
@@ -124,6 +133,13 @@ impl Sandbox {
     fn selected(&self) -> String {
         fs::read_to_string(self.file("selected")).unwrap()
     }
+
+    fn headless_console_members(&self, report: &str) -> u32 {
+        let data = fs::read_to_string(self.file(report)).unwrap();
+        let (members, has_window) = data.split_once(' ').unwrap();
+        assert_eq!(has_window, "false", "{report} got a console window");
+        members.parse().unwrap()
+    }
 }
 
 fn text(output: &Output) -> String {
@@ -151,7 +167,7 @@ fn rejected(output: &Output, expected: &str) {
 
 fn powershells() -> Vec<&'static str> {
     let mut shells = vec!["powershell.exe"];
-    if Command::new("pwsh.exe")
+    if headless_command("pwsh.exe")
         .args(["-NoProfile", "-NonInteractive", "-Command", "exit 0"])
         .output()
         .is_ok_and(|output| output.status.success())
@@ -434,6 +450,21 @@ fn noninteractive_profile_does_not_install_integration() {
     }
 }
 
+/// Captured queries must not create visible consoles when mgh has no console.
+#[test]
+fn detached_status_keeps_queries_headless() {
+    let env = Sandbox::new();
+    checked(
+        &env.command(MGH)
+            .creation_flags(DETACHED_PROCESS)
+            .args(["status", "--full"])
+            .output()
+            .unwrap(),
+    );
+    env.headless_console_members("status-console");
+    env.headless_console_members("full-status-console");
+}
+
 /// Welcome is once per session; entry is once per repository and pickers keep the console.
 #[test]
 fn powershell_welcome_and_foreground_entry() {
@@ -507,6 +538,10 @@ fn powershell_background_entry_and_git_wait() {
             assert!(Instant::now() < deadline, "Background switch did not start");
             thread::sleep(Duration::from_millis(10));
         }
+        assert!(
+            env.headless_console_members("switch-console") > 1,
+            "GitHub CLI did not inherit the background worker's console"
+        );
         assert_eq!(env.selected(), "alice");
         terminal.send("git rev-parse --is-inside-work-tree; Write-Host ('GIT-' + 'FINISHED')\r");
         let deadline = Instant::now() + Duration::from_millis(350);

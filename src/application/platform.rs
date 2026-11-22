@@ -1,12 +1,23 @@
 use anyhow::{Context, Result, bail};
 #[cfg(unix)]
 use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::{
     env, fs,
     io::{self, Write},
     path::{Path, PathBuf},
     process::{Command, Output},
 };
+
+#[cfg(windows)]
+pub(super) const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+#[cfg(windows)]
+#[link(name = "kernel32")]
+unsafe extern "system" {
+    fn GetConsoleCP() -> u32;
+}
 
 pub(super) fn home() -> Result<PathBuf> {
     env::var_os("HOME")
@@ -37,6 +48,12 @@ pub(super) fn private_dir(path: &Path) -> Result<()> {
 }
 
 pub(super) fn output(command: &mut Command) -> Result<Output> {
+    // Redirecting streams doesn't stop Windows opening a console for a child
+    // when the caller has none. Otherwise let the child inherit the console.
+    #[cfg(windows)]
+    if unsafe { GetConsoleCP() } == 0 {
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
     command
         .output()
         .with_context(|| format!("Cannot execute {command:?}"))

@@ -237,6 +237,11 @@ fn setup_guidance(ui: &mut dyn Interaction) {
             "eval \"$(mgh shell init bash)\"",
         ),
         ("Zsh config", "~/.zshrc", "eval \"$(mgh shell init zsh)\""),
+        (
+            "PowerShell profile (Windows)",
+            "$PROFILE",
+            ". ([ScriptBlock]::Create((mgh shell init powershell | Out-String)))",
+        ),
     ] {
         ui.separate();
         ui.row(shell, config, Meaning::Path, false);

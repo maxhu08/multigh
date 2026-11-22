@@ -13,6 +13,7 @@ pub enum ShellKind {
     Fish,
     Bash,
     Zsh,
+    PowerShell,
 }
 use std::{
     ffi::OsString,

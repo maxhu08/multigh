@@ -166,6 +166,19 @@ fn valid_launcher(text: &str, name: &str, config: Option<&Path>) -> Result<bool>
     Ok(false)
 }
 
+fn project_hook(directory: &Path, name: &str) -> PathBuf {
+    let hook = directory.join(name);
+    #[cfg(windows)]
+    if !hook.exists() {
+        // Match Git for Windows' fallback when the extensionless hook is absent.
+        let exe = hook.with_extension("exe");
+        if exe.is_file() {
+            return exe;
+        }
+    }
+    hook
+}
+
 pub(super) fn readiness(repo: Option<&Repository>, config: Option<&Path>) -> Result<HookReadiness> {
     let mut problems = vec![];
     let mut project_hooks = vec![];
@@ -211,7 +224,7 @@ pub(super) fn readiness(repo: Option<&Repository>, config: Option<&Path>) -> Res
             problems.push(format!("Preserved-hook recursion at {}", project.display()));
         } else {
             for name in HOOK_NAMES {
-                let hook = project.join(name);
+                let hook = project_hook(&project, name);
                 if hook.exists() {
                     let meaningful = if project.ends_with(".husky/_") {
                         project.parent().unwrap().join(name)
@@ -299,7 +312,7 @@ pub(super) fn execute(
         "Preserved-hook recursion at {}",
         directory.display()
     );
-    let hook = directory.join(name);
+    let hook = project_hook(&directory, name);
     if !platform::executable(&hook) {
         return Ok(());
     }
@@ -310,7 +323,24 @@ pub(super) fn execute(
             hook.display()
         );
     }
+    #[cfg(not(windows))]
     let mut command = Command::new(&hook);
+    #[cfg(windows)]
+    let mut command = if hook.extension().is_some_and(|extension| extension == "exe") {
+        Command::new(&hook)
+    } else {
+        // Git for Windows supplies the shell needed to run extensionless shebang hooks.
+        // The fixed shell command receives the hook path and its arguments as separate words.
+        let mut command = Command::new("git");
+        command
+            .args([
+                "-c",
+                "alias.mgh-preserved-hook=!exec --",
+                "mgh-preserved-hook",
+            ])
+            .arg(&hook);
+        command
+    };
     command
         .args(args)
         .stdout(Stdio::inherit())

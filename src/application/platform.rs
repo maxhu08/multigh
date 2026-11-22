@@ -75,6 +75,8 @@ pub(super) fn reject_symlink(path: &Path, description: &str) -> Result<()> {
 }
 
 pub(super) fn write_private(path: &Path, bytes: &[u8], executable: bool) -> Result<bool> {
+    #[cfg(not(unix))]
+    let _ = executable;
     reject_symlink(path, "Protected destination")?;
     if fs::read(path).ok().as_deref() == Some(bytes) {
         #[cfg(unix)]

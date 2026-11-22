@@ -350,14 +350,17 @@ pub enum InitShell {
     Fish,
     Bash,
     Zsh,
+    #[value(name = "powershell")]
+    PowerShell,
 }
 
 #[derive(Subcommand, Debug)]
 pub enum ShellCommand {
-    /// Source the emitted script in an interactive Fish/Bash/Zsh shell; noninteractive startup has no effects
+    /// Load the emitted integration script in an interactive shell; noninteractive startup has no effects
     #[command(
         after_help = concat!(
-            "Emit a script for interactive startup and directory changes, preserving existing Git ",
+            "Emit a script for Fish, Bash, Zsh, or PowerShell on Windows. Integrates interactive ",
+            "startup and directory changes, preserving existing Git ",
             "functions/aliases and prompt handlers. Repeated initialization does not duplicate ",
             "reports. Noninteractive sourcing has no effects. Native git init runs first; ",
             "cancellation leaves Git successful and the new repository blocked. Recover with mgh ",
@@ -368,7 +371,7 @@ pub enum ShellCommand {
     #[command(
         after_help = concat!(
             "Emit native completions for Fish, Bash, Zsh, PowerShell or Elvish without reading ",
-            "configuration, querying accounts or changing state. Interactive Fish/Bash/Zsh ",
+            "configuration, querying accounts or changing state. Interactive shell ",
             "initialization loads completions automatically.",
         )
     )]

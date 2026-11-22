@@ -144,6 +144,23 @@ pub(super) fn initialization(inv: &Invocation, kind: ShellKind) -> Result<String
         ShellKind::Fish => include_str!("../../shell/init.fish"),
         ShellKind::Bash => include_str!("../../shell/init.bash"),
         ShellKind::Zsh => include_str!("../../shell/init.zsh"),
+        ShellKind::PowerShell => {
+            let script = include_str!("../../shell/init.ps1");
+            let config = if inv.config.is_some() {
+                // Windows PowerShell may decode piped native output using a legacy code page.
+                let units = inv
+                    .path()?
+                    .to_string_lossy()
+                    .encode_utf16()
+                    .map(|unit| unit.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                format!("(-join [char[]]({units}))")
+            } else {
+                "$null".to_string()
+            };
+            return Ok(script.replace("$null # MGH_CONFIG", &config));
+        }
     };
     Ok(if inv.config.is_some() {
         script.replace(

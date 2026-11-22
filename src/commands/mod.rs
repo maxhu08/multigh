@@ -76,6 +76,7 @@ pub fn run(cli: Cli, ui: &mut dyn Interaction) -> Result<i32> {
                     InitShell::Fish => ShellKind::Fish,
                     InitShell::Bash => ShellKind::Bash,
                     InitShell::Zsh => ShellKind::Zsh,
+                    InitShell::PowerShell => ShellKind::PowerShell,
                 };
                 print!("{}", invocation.shell_initialization(kind)?);
             }

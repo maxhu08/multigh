@@ -3,6 +3,7 @@ name = "multigh"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.89"
+default-run = "mgh"
 
 [dependencies]
 anyhow = "1.0"
@@ -18,3 +19,10 @@ tempfile = "3.27"
 [[bin]]
 name = "mgh"
 path = "src/main.rs"
+
+[[bin]]
+name = "mgh-git"
+path = "src/bin/mgh-git.rs"
+
+[target.'cfg(windows)'.dev-dependencies]
+portable-pty = "0.9"

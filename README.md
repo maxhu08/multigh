@@ -1,43 +1,90 @@
 # multigh
 
-`mgh` manages multiple GitHub accounts and keeps authentication and commit details aligned across repositories. Name identities `personal`, `school`, `work` or anything that fits your workflow. Identity names are case-insensitive.
+`mgh` switches between GitHub accounts and keeps authentication and commit details aligned across repositories.
 
-This is a small personal utility, put together quickly. It has automated regression tests, but has not been rigorously tested across real-world environments or varied setups.
+This is a small personal utility with automated tests, not a substitute for server-side protections.
 
-Requires Git 2.45+ and GitHub CLI. Installation requires Rust 1.89+; interactive shell integration supports Fish, Bash and Zsh on Unix.
+## Install
 
-## Getting started
+You need Git 2.45+, GitHub CLI (`gh`), and Rust 1.89+. Install your platform's prerequisites, then run `cargo install` from this checkout. For shell integration, copy only your shell's profile command, without the leading `#`.
 
-From this checkout:
+### macOS
 
-```sh
-cargo install --path . --locked --root "$HOME/.local"
-```
-
-Add `~/.local/bin` to PATH if needed, then run:
+Install [Homebrew](https://brew.sh/) if you don't already have it.
 
 ```sh
-mgh setup
+# Uncomment if you don't have Xcode or the Command Line Tools:
+# xcode-select --install
+
+# Git, GitHub CLI, and Rust.
+brew install git gh rust
+
+# Clone and enter the repository.
+git clone https://github.com/maxhu08/multigh.git
+cd multigh
+
+# Install mgh. Make sure ~/.local/bin is on PATH.
+cargo install --path . --locked --bin mgh --root "$HOME/.local"
+
+# Uncomment for Zsh and add to ~/.zshrc:
+# eval "$(mgh shell init zsh)"
+# Uncomment for Bash and add to ~/.bash_profile:
+# eval "$(mgh shell init bash)"
+# Uncomment for Fish and add to ~/.config/fish/config.fish:
+# mgh shell init fish | source
 ```
 
-Setup prompts for your first identity and opens GitHub sign-in when needed. Add more identities with `mgh identity new`.
-
-Add the matching line to your shell configuration, then restart your shell:
-
-```fish
-# Fish: ~/.config/fish/config.fish
-mgh shell init fish | source
-```
+### Linux
 
 ```sh
-# Bash: ~/.bashrc
-eval "$(mgh shell init bash)"
+# Install git, gh, and a C compiler and linker with your distro's package manager
+# (e.g. build-essential provides the build tools on Debian and Ubuntu).
+# Install Rust 1.89+ with cargo via your distro's packages or rustup.
 
-# Zsh: ~/.zshrc
-eval "$(mgh shell init zsh)"
+# Clone and enter the repository.
+git clone https://github.com/maxhu08/multigh.git
+cd multigh
+
+# Install mgh. Make sure ~/.local/bin is on PATH.
+cargo install --path . --locked --bin mgh --root "$HOME/.local"
+
+# Uncomment for Bash and add to ~/.bashrc:
+# eval "$(mgh shell init bash)"
+# Uncomment for Zsh and add to ~/.zshrc:
+# eval "$(mgh shell init zsh)"
+# Uncomment for Fish and add to ~/.config/fish/config.fish:
+# mgh shell init fish | source
 ```
 
-This enables repository-entry checks and Tab completion. Inside each repository:
+### Windows
+
+```powershell
+# Git for Windows and GitHub CLI via WinGet.
+winget install -e --id Git.Git
+winget install -e --id GitHub.cli
+
+# Visual Studio Build Tools with the C++ workload for Rust's MSVC toolchain.
+winget install -e --id Microsoft.VisualStudio.2022.BuildTools --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+winget install -e --id Rustlang.Rustup
+
+# Reopen PowerShell to refresh PATH, then clone and enter the repository.
+git clone https://github.com/maxhu08/multigh.git
+cd multigh
+
+# Install both binaries. Add %USERPROFILE%\.cargo\bin to PATH if needed.
+cargo install --path . --locked --bin mgh --bin mgh-git
+
+# Uncomment for PowerShell 5.1 or 7 and add to $PROFILE after any custom prompt setup:
+# . ([ScriptBlock]::Create((mgh shell init powershell | Out-String)))
+```
+
+PowerShell checks for repository changes at the next prompt. Existing `git` aliases and functions are not replaced, and calling `git.exe` directly bypasses autoswitch coordination.
+
+## First use
+
+Run `mgh setup` to create your first identity and sign in. If you added a shell profile line, restart your shell afterward to enable repository-entry checks and Tab completion. Add more identities with `mgh identity new`.
+
+Inside each repository:
 
 ```sh
 mgh repo allowed update  # Choose identities allowed to commit and push here.
@@ -45,7 +92,7 @@ mgh switch personal     # Select an identity you've allowed.
 mgh status              # Inspect identities and the current repository.
 ```
 
-Use Space to select identities and Enter to save; Esc or Ctrl+C cancels. Entering an unconfigured repository or running interactive `git init` also offers the checklist. After cloning, run `mgh repo allowed update` if no picker appears.
+In the picker, use Space to select, Enter to save, and Esc or Ctrl+C to cancel.
 
 ## Commands
 
@@ -69,24 +116,30 @@ Identities live in `$XDG_CONFIG_HOME/multigh/identities.jsonc`, defaulting to `~
 
 Each identity requires `username` and `commit.email`. `commit.name` defaults to the username; optional `commit.additional_emails` accepts older or noreply commit addresses without using them for new commits. Usernames and accepted email addresses must be unique across identities. Identity names start with an ASCII letter and may contain ASCII letters, digits, underscores and hyphens.
 
-Generated identity files, hooks and preferences live in `$XDG_STATE_HOME/multigh`, defaulting to `~/.local/state/multigh`. GitHub tokens remain in GitHub CLI storage.
+Generated identity files, hooks and preferences live in `$XDG_STATE_HOME/multigh`, defaulting to `~/.local/state/multigh`. On Windows, `%USERPROFILE%` is used when `HOME` is unset. GitHub tokens remain in GitHub CLI storage.
 
 ## Permissions and switching
 
-Protections default to ON after integration is installed. A repository with no allowed identities blocks protected commits and pushes. Permissions are local to the repository and shared by linked worktrees; creating or switching an identity never grants permission.
+Protections default to on after setup. Protected commits and pushes are blocked until the repository allows an identity. Linked worktrees share permissions; switching accounts never grants permission.
+
+Autoswitch is off by default. Enable it with:
+
+- `mgh settings autoswitch foreground` — switch before returning to the prompt; choose an identity if several are allowed.
+- `mgh settings autoswitch background` — switch without blocking the prompt. If several identities are allowed, run `mgh switch <identity>` yourself.
+
+GitHub CLI's active account is shared across terminals. Integrated Git waits for background switching; direct `gh` commands and unwrapped Git do not.
+
+Existing project hooks still run. `mgh setup` reports custom global hook paths rather than replacing them.
+
+### HTTPS credentials
+
+To make HTTPS Git operations for `github.com` use the active `gh` account instead of another credential helper, run:
 
 ```sh
-mgh repo allowed add work
-mgh repo protections off       # Disable protections only in this repository.
-mgh repo protections on        # Repair integration and re-enable checks.
-mgh settings autoswitch background  # Enable nonblocking automatic switching.
+gh auth setup-git -h github.com
 ```
 
-Autoswitch defaults to `off`. `foreground` selects the sole allowed identity, or prompts when several are allowed, and waits for switching to finish. `background` checks permissions immediately and switches without blocking the prompt; multiple choices require `mgh switch <identity>`, and only failures are reported afterward. Moving within the same repository stays silent. Entry feedback appears even when verbose reports are OFF.
-
-GitHub's active account is shared across terminals. Integrated Git waits for background switching; direct `gh` commands and unwrapped Git bypass coordination. Verbose entry reports turn on after the first completed setup; the welcome greeting defaults to OFF.
-
-Existing project hooks continue to run. Custom global hook paths require manual integration; setup reports them instead of replacing them. Push checks also reject outgoing commits attributed to your other disallowed configured identities. These are local safeguards: tools that bypass Git hooks can bypass the checks.
+`mgh setup` does not change credential helpers. SSH remotes are unaffected.
 
 ### Git LFS
 
@@ -96,8 +149,6 @@ From the root of a normal checkout (where `.git` is a directory), install LFS in
 git -c core.hooksPath=.git/hooks lfs install --local
 ```
 
-The override applies only to installation. Normal Git operations still use mgh's managed hooks; protected pushes run mgh checks before forwarding arguments and input to `git lfs pre-push`. Do not force LFS to overwrite the shared hooks or disable protections to install it.
-
-For linked worktrees, run this from the main checkout, not the linked worktree where `.git` is a file. If mgh preserves a custom hook directory (for example, Husky), use `git lfs install --local --manual` and integrate LFS into those existing hooks instead; `.git/hooks` is not the forwarded directory in that case.
+Run this from the main checkout, not a linked worktree. If your project uses a custom hook directory (such as Husky), use `git lfs install --local --manual` and add LFS to those hooks instead. Don't overwrite mgh's shared hooks.
 
 For problems, run `mgh doctor`, then `mgh setup` to refresh integration. For build and test instructions, see [Development](docs/development.md).

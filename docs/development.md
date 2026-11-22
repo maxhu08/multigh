@@ -1,6 +1,6 @@
 # Development
 
-Build with `cargo build --release`; the executable is `target/release/mgh`.
+Build with `cargo build --release`. Windows shell integration uses both `target/release/mgh.exe` and the adjacent `target/release/mgh-git.exe`.
 
 ## Architecture
 
@@ -11,12 +11,12 @@ Build with `cargo build --release`; the executable is `target/release/mgh`.
 - `src/cli.rs` defines arguments and help; `src/commands/` dispatches commands.
 - `src/application/` owns validated identities, workflows, GitHub authentication, repository permissions, Git operations and hooks.
 - `src/presentation/` owns forms, colors, indentation and report spacing.
-- `shell/` contains the embedded Fish, Bash and Zsh integration.
+- `shell/` contains the embedded Fish, Bash, Zsh and Windows PowerShell integration.
 - `tests/acceptance.rs` registers the behavior groups in `tests/cases/`. `tests/support/` supplies the isolated sandbox, simulated GitHub responses and terminal driver; `tests/fixtures/` contains sample identity data.
 
 ## Checks
 
-Tests require Unix, Git 2.45+, Fish, Bash, Zsh, Python 3 and Cocogitto 7+ (`cog`) on PATH. Each test uses temporary home/config/state directories and simulated GitHub authentication, leaving real credentials and repositories untouched.
+The Unix acceptance suite requires Git 2.45+, Fish, Bash, Zsh, Python 3 and Cocogitto 7+ (`cog`) on PATH. Each suite uses temporary home/config/state directories and simulated GitHub authentication, leaving real credentials and repositories untouched.
 
 ```sh
 cargo fmt --check
@@ -27,6 +27,8 @@ cargo clippy --all-targets -- -D warnings
 cargo test --test acceptance push::
 cargo test --test acceptance autoswitch
 ```
+
+On Windows, use Git for Windows 2.45+ with Git LFS and run `cargo test --locked --test windows_acceptance`. It uses the Windows pseudoconsole to run the actual shell startup, picker and switch workflows. Windows PowerShell 5.1 is required; PowerShell 7 is also tested if `pwsh.exe` is on PATH. Set `MGH_REQUIRE_PWSH=1` to require both versions. The suite also checks protected commits and pushes, project hooks, and linked worktrees with isolated credentials.
 
 ## What the tests are for
 

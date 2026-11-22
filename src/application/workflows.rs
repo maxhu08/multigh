@@ -688,14 +688,31 @@ fn show_readiness(
     }
 }
 
-pub(super) fn repo_report(
+fn repo_report(
     repo: &Repository,
     catalog: Option<&Catalog>,
     config: &Path,
+    show_autoswitch: bool,
+    accounts: Option<&accounts::AccountQueries>,
     ui: &mut dyn Interaction,
 ) -> Result<()> {
-    repo_details(repo, catalog, config, ui)?;
-    autoswitch_row("Autoswitch (global)", ui)?;
+    let needs_permissions = repo_details(repo, catalog, config, ui)?;
+    if show_autoswitch {
+        autoswitch_row("Autoswitch (global)", ui)?;
+    }
+    if needs_permissions {
+        ui.separate();
+        ui.warning(
+            "No identities are allowed to commit or push in this repository.\n\
+             Run `mgh repo allowed update` and select at least one identity.",
+        );
+    } else if let (Some(catalog), Some(accounts)) = (catalog, accounts) {
+        ui.separate();
+        match repo.commit_check(catalog, accounts) {
+            Err(error) => ui.warning(&format!("{error:#}")),
+            Ok(()) => ui.message("Identity and commit details match", Meaning::Success),
+        }
+    }
     Ok(())
 }
 
@@ -704,22 +721,14 @@ pub(super) fn repo_status(
     catalog: &Catalog,
     ui: &mut dyn Interaction,
 ) -> Result<()> {
-    repo_report(repo, Some(catalog), catalog.path(), ui)?;
-    report_identity_match(repo, catalog, &accounts::AccountQueries::default(), ui);
-    Ok(())
-}
-
-fn report_identity_match(
-    repo: &Repository,
-    catalog: &Catalog,
-    accounts: &accounts::AccountQueries,
-    ui: &mut dyn Interaction,
-) {
-    ui.separate();
-    match repo.commit_check(catalog, accounts) {
-        Err(error) => ui.warning(&format!("{error:#}")),
-        Ok(()) => ui.message("Identity and commit details match", Meaning::Success),
-    }
+    repo_report(
+        repo,
+        Some(catalog),
+        catalog.path(),
+        true,
+        Some(&accounts::AccountQueries::default()),
+        ui,
+    )
 }
 
 fn repo_details(
@@ -727,7 +736,7 @@ fn repo_details(
     catalog: Option<&Catalog>,
     config: &Path,
     ui: &mut dyn Interaction,
-) -> Result<()> {
+) -> Result<bool> {
     ui.heading("Repository");
     ui.row(
         "Current repository",
@@ -785,13 +794,10 @@ fn repo_details(
     let readiness = repo.readiness(config)?;
     let enabled = repo.protections()?;
     show_readiness(&readiness, enabled, ui);
-    if enabled && stored.is_empty() {
-        ui.warning("No identities selected; commits and pushes remain blocked. Run: mgh repo allowed update");
-    }
     for hook in readiness.project_hooks {
         ui.row("Project hook", &hook, Meaning::Path, false);
     }
-    Ok(())
+    Ok(enabled && stored.is_empty())
 }
 
 pub(super) fn enter(inv: &Invocation, ui: &mut dyn Interaction) -> Result<()> {
@@ -1070,7 +1076,7 @@ fn enter_repository(
         };
     }
     if verbose {
-        repo_report(repo, Some(&catalog), catalog.path(), ui)?;
+        repo_report(repo, Some(&catalog), catalog.path(), true, None, ui)?;
     }
     Ok(None)
 }
@@ -1108,15 +1114,14 @@ pub(super) fn status(inv: &Invocation, full: bool, ui: &mut dyn Interaction) -> 
     }
     report_other_accounts(catalog.as_ref(), &accounts, ui);
     if let Some(repo) = Repository::discover()? {
-        repo_details(&repo, catalog.as_ref(), &inv.path()?, ui)?;
-        if let Some(catalog) = &catalog {
-            report_identity_match(
-                &repo,
-                catalog,
-                &accounts::AccountQueries::from_accounts(&accounts),
-                ui,
-            );
-        }
+        repo_report(
+            &repo,
+            catalog.as_ref(),
+            &inv.path()?,
+            false,
+            Some(&accounts::AccountQueries::from_accounts(&accounts)),
+            ui,
+        )?;
     }
     if full {
         let report = accounts::full()?;
